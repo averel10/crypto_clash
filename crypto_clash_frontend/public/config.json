@@ -1,5 +1,5 @@
 {
-    "API_URL": "http://185.48.228.49:8545",
+    "API_URL": "https://rpc.hasrv.averel10.app",
     "CONTRACT_ADDRESS": "0x62A3a88E7D5021AD960426206BD05Ef09eee02a0",
     "ABI": [
         {
