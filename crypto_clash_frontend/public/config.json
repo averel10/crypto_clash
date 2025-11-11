@@ -1,0 +1,62 @@
+{
+    "API_URL": "http://185.48.228.49:8545",
+    "CONTRACT_ADDRESS": "0x62A3a88E7D5021AD960426206BD05Ef09eee02a0",
+    "ABI": [
+        {
+            "inputs": [
+                {
+                    "internalType": "string",
+                    "name": "initMessage",
+                    "type": "string"
+                }
+            ],
+            "stateMutability": "nonpayable",
+            "type": "constructor"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": false,
+                    "internalType": "string",
+                    "name": "oldStr",
+                    "type": "string"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "string",
+                    "name": "newStr",
+                    "type": "string"
+                }
+            ],
+            "name": "UpdatedMessages",
+            "type": "event"
+        },
+        {
+            "inputs": [],
+            "name": "message",
+            "outputs": [
+                {
+                    "internalType": "string",
+                    "name": "",
+                    "type": "string"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "string",
+                    "name": "newMessage",
+                    "type": "string"
+                }
+            ],
+            "name": "update",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        }
+    ]
+}
