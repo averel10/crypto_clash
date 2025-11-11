@@ -1,6 +1,6 @@
 {
     "API_URL": "http://185.48.228.49:8545",
-    "CONTRACT_ADDRESS": "0x565150dD0689947a6d2e9Af7d3078D0A922E72c7",
+    "CONTRACT_ADDRESS": "0x62A3a88E7D5021AD960426206BD05Ef09eee02a0",
     "ABI": [
         {
             "inputs": [
