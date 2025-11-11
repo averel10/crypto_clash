@@ -40,4 +40,10 @@ jobs:
           git commit -m "Update deployed contract address" || echo "No changes to commit"
           git push
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trigger frontend deployment
+        run: |
+          gh workflow run deploy_frontend.yml -r main
+        env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    
