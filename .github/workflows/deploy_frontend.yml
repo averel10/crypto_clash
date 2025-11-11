@@ -1,9 +1,13 @@
-name: Publish Frontend on GitHub Pages
+name: Deploy frontend
 
 on:
   push:
     branches:
       - main
+    paths:
+      - 'crypto_clash_frontend/**'
+      - '.github/workflows/deploy_frontend.yml'
+      - 'config.json'
 
 permissions:
   contents: read
@@ -14,8 +18,8 @@ concurrency:
   group: "pages"
   cancel-in-progress: false
 
-jobs:
-  build:
+jobs:  
+  build-frontend:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -36,13 +40,14 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./crypto_clash_frontend/out
-  deploy:
+  deploy-frontend:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
 
     runs-on: ubuntu-latest
-    needs: build
+    needs: 
+      - build-frontend
     steps:
       - name: Publish to GitHub Pages
         id: deployment

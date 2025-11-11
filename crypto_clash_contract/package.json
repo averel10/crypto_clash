@@ -1,0 +1,22 @@
+{
+  "name": "crypto_clash_contract",
+  "version": "1.0.0",
+  "scripts": {
+    "compile": "hardhat compile",
+    "deploy": "tsc && node dist/scripts/deploy.js",
+    "test": "tsc && node dist/scripts/test.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "hardhat": "^3.0.13",
+    "typescript": "~5.8.0"
+  },
+  "type": "module",
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "ethers": "^6.15.0"
+  }
+}

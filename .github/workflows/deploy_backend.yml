@@ -1,0 +1,40 @@
+name: Deploy Contract
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'crypto_clash_contract/**'
+      - '.github/workflows/deploy_backend.yml'
+
+jobs:
+  build-and-deploy-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          # update the Node version to meet your needs
+          node-version: 24
+          cache: npm
+          cache-dependency-path: crypto_clash_contract/package-lock.json
+
+      - name: Install dependencies and compile contract
+        run: npm ci && npm run compile && npm run deploy
+        working-directory: crypto_clash_contract
+        env:
+          API_URL: ${{ vars.API_URL }}
+          WALLET_PRIVATE_KEY: ${{ secrets.WALLET_PRIVATE_KEY }}
+
+      - name: Commit deployed contract address
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add config.json
+          git commit -m "Update deployed contract address" || echo "No changes to commit"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    
