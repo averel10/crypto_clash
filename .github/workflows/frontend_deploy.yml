@@ -29,7 +29,7 @@ jobs:
           cache-dependency-path: crypto_clash_frontend/package-lock.json
 
       - name: Build with Next.js
-        run: npm run build
+        run: npm ci &&npm run build
         working-directory: crypto_clash_frontend
 
       - name: Upload artifact
