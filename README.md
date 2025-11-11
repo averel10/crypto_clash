@@ -1,5 +1,5 @@
 URL: https://averel10.github.io/crypto_clash/
-=> The live env uses a Reverse-Proxy-Setup to interact with the RPC endpoint: https://rpc.hasrv.averel10.app/, this is needed because we use https in prod so we can't use an http rpc endpoint. This is not an issue in local setup
+=> The live env uses a Reverse-Proxy-Setup to interact with the RPC endpoint: https://rpc.hasrv.averel10.app/, this is needed because we use https in prod so we can't use an http rpc endpoint. This is not an issue in local setup. The proxy is hosted on my NAS and not available over night.
 
 
 # Local Setup
