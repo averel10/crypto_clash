@@ -27,14 +27,14 @@ jobs:
           cache: npm
           cache-dependency-path: crypto_clash_contract/package-lock.json
 
-      - name: Install dependencies and compile contract
+      - name: Install dependencies and compile/deploy contract
         run: npm ci && npm run compile && npm run deploy
         working-directory: crypto_clash_contract
         env:
           API_URL: ${{ vars.API_URL }}
           WALLET_PRIVATE_KEY: ${{ secrets.WALLET_PRIVATE_KEY }}
 
-      - name: Push config.json to artifact
+      - name: Push config.json to artifacts
         uses: actions/upload-artifact@v5
         with:
           name: contract-config
