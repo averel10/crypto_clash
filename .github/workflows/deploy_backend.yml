@@ -34,6 +34,12 @@ jobs:
           API_URL: ${{ vars.API_URL }}
           WALLET_PRIVATE_KEY: ${{ secrets.WALLET_PRIVATE_KEY }}
 
+      - name: Push config.json to artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: contract-config
+          path: config.json
+
       - name: Commit deployed contract address
         run: |
           git config --global user.name "github-actions[bot]"
