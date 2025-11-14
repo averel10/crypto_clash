@@ -1,6 +1,6 @@
 {
-    "API_URL": "https://rpc.hasrv.averel10.app/",
-    "CONTRACT_ADDRESS": "0xC3D2A1471A5e19ce586D4D3cB398Ce560efAF6Ca",
+    "API_URL": "http://185.48.228.49:8545",
+    "CONTRACT_ADDRESS": "0x375dDb60596f9587756012d95597dba54A247000",
     "ABI": [
         {
             "inputs": [
@@ -56,6 +56,326 @@
             "name": "update",
             "outputs": [],
             "stateMutability": "nonpayable",
+            "type": "function"
+        }
+    ],
+    "GAME_CONTRACT_ADDRESS": "0x3209690ae3785924525453997d553624123871e6",
+    "GAME_ABI": [
+        {
+            "inputs": [],
+            "name": "BET_MIN",
+            "outputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "",
+                    "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "REVEAL_TIMEOUT",
+            "outputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "",
+                    "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "bothPlayed",
+            "outputs": [
+                {
+                    "internalType": "bool",
+                    "name": "",
+                    "type": "bool"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "bothRevealed",
+            "outputs": [
+                {
+                    "internalType": "bool",
+                    "name": "",
+                    "type": "bool"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "getActiveGameIds",
+            "outputs": [
+                {
+                    "internalType": "uint256[]",
+                    "name": "",
+                    "type": "uint256[]"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "getContractBalance",
+            "outputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "",
+                    "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "gameId",
+                    "type": "uint256"
+                }
+            ],
+            "name": "getGameDetails",
+            "outputs": [
+                {
+                    "internalType": "address",
+                    "name": "playerAAddr",
+                    "type": "address"
+                },
+                {
+                    "internalType": "address",
+                    "name": "playerBAddr",
+                    "type": "address"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "initialBet",
+                    "type": "uint256"
+                },
+                {
+                    "internalType": "enum Game.Outcomes",
+                    "name": "outcome",
+                    "type": "uint8"
+                },
+                {
+                    "internalType": "bool",
+                    "name": "isActive",
+                    "type": "bool"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "getLastWinner",
+            "outputs": [
+                {
+                    "internalType": "enum Game.Outcomes",
+                    "name": "",
+                    "type": "uint8"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "getMyActiveGameId",
+            "outputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "",
+                    "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "getOutcome",
+            "outputs": [
+                {
+                    "internalType": "enum Game.Outcomes",
+                    "name": "",
+                    "type": "uint8"
+                }
+            ],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "index",
+                    "type": "uint256"
+                }
+            ],
+            "name": "getPastGame",
+            "outputs": [
+                {
+                    "internalType": "address",
+                    "name": "playerAAddr",
+                    "type": "address"
+                },
+                {
+                    "internalType": "address",
+                    "name": "playerBAddr",
+                    "type": "address"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "initialBet",
+                    "type": "uint256"
+                },
+                {
+                    "internalType": "enum Game.Outcomes",
+                    "name": "outcome",
+                    "type": "uint8"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "getPastGamesCount",
+            "outputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "",
+                    "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "bytes32",
+                    "name": "encrMove",
+                    "type": "bytes32"
+                }
+            ],
+            "name": "play",
+            "outputs": [
+                {
+                    "internalType": "bool",
+                    "name": "",
+                    "type": "bool"
+                }
+            ],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "playerARevealed",
+            "outputs": [
+                {
+                    "internalType": "bool",
+                    "name": "",
+                    "type": "bool"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "playerBRevealed",
+            "outputs": [
+                {
+                    "internalType": "bool",
+                    "name": "",
+                    "type": "bool"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "gameId",
+                    "type": "uint256"
+                }
+            ],
+            "name": "register",
+            "outputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "playerId",
+                    "type": "uint256"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "returnGameId",
+                    "type": "uint256"
+                }
+            ],
+            "stateMutability": "payable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "string",
+                    "name": "clearMove",
+                    "type": "string"
+                }
+            ],
+            "name": "reveal",
+            "outputs": [
+                {
+                    "internalType": "enum Game.Moves",
+                    "name": "",
+                    "type": "uint8"
+                }
+            ],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "revealTimeLeft",
+            "outputs": [
+                {
+                    "internalType": "int256",
+                    "name": "",
+                    "type": "int256"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "whoAmI",
+            "outputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "",
+                    "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
             "type": "function"
         }
     ]
