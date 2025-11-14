@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.7.3;
+pragma solidity >=0.7.3;
 
 contract Game {
     uint public constant BET_MIN = 1e16; // The minimum bet (1 BLD)
