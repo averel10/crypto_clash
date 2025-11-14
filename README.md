@@ -1,6 +1,9 @@
 URL: https://averel10.github.io/crypto_clash/
 => The live env uses a Reverse-Proxy-Setup to interact with the RPC endpoint: https://rpc.hasrv.averel10.app/, this is needed because we use https in prod so we can't use an http rpc endpoint. This is not an issue in local setup. The proxy is hosted on my NAS and not available over night.
 
+# Requirements Document
+The full functional specification for the Rock-Paper-Scissors DApp can be found here:  
+👉 **[REQUIREMENTS.md](./REQUIREMENTS.md)**
 
 # Local Setup
 - Add a .env-File into crypto_clash_contract containing the following data:
