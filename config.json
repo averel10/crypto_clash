@@ -1,6 +1,6 @@
 {
-    "API_URL": "http://185.48.228.49:8545",
-    "CONTRACT_ADDRESS": "0x375dDb60596f9587756012d95597dba54A247000",
+    "API_URL": "https://rpc.hasrv.averel10.app/",
+    "CONTRACT_ADDRESS": "0x8B7746B922a80d9B29cA939fD90577932527112C",
     "ABI": [
         {
             "inputs": [
@@ -59,7 +59,7 @@
             "type": "function"
         }
     ],
-    "GAME_CONTRACT_ADDRESS": "0x3209690ae3785924525453997d553624123871e6",
+    "GAME_CONTRACT_ADDRESS": "0x9230eBBB05c3e953a5F135F032b352c6F0B6E164",
     "GAME_ABI": [
         {
             "inputs": [],
