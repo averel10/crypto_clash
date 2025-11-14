@@ -1,6 +1,6 @@
 {
     "API_URL": "https://rpc.hasrv.averel10.app/",
-    "CONTRACT_ADDRESS": "0x85AAE17F32f4bd281ebd6485b9f8c233c5FAc137",
+    "CONTRACT_ADDRESS": "0xC3D2A1471A5e19ce586D4D3cB398Ce560efAF6Ca",
     "ABI": [
         {
             "inputs": [
