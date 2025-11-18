@@ -1,43 +1,105 @@
 import { useState } from "react";
+import Web3 from "web3";
 
 interface RevealProps {
-  revealMove: string;
-  setRevealMove: (v: string) => void;
-  handleReveal: () => void;
-  loading: boolean;
   account: string;
   contract: any;
-  bothRevealed: string;
-  handleBothRevealed: () => void;
-  playerARevealed: string;
-  handlePlayerARevealed: () => void;
-  playerBRevealed: string;
-  handlePlayerBRevealed: () => void;
+  config: Config | null;
+  web3: Web3 | null;
+  setStatus: (status: string) => void;
 }
 
 export default function Reveal({
-  revealMove,
-  setRevealMove,
-  handleReveal,
-  loading,
   account,
   contract,
-  bothRevealed,
-  handleBothRevealed,
-  playerARevealed,
-  handlePlayerARevealed,
-  playerBRevealed,
-  handlePlayerBRevealed,
+  config,
+  web3,
+  setStatus,
 }: Readonly<RevealProps>) {
+  const [loading, setLoading] = useState(false);
+  const [revealMove, setRevealMove] = useState<string>("");
+  const [bothRevealed, setBothRevealed] = useState<string>("");
+  const [playerARevealed, setPlayerARevealed] = useState<string>("");
+  const [playerBRevealed, setPlayerBRevealed] = useState<string>("");
   const [revealTimeLeft, setRevealTimeLeft] = useState<string>("");
+
+  // Reveal phase read-only handlers
+  const handleBothRevealed = async () => {
+    if (!contract) return;
+    setLoading(true);
+    try {
+      const res = await contract.methods.bothRevealed().call();
+      setBothRevealed(res ? "true" : "false");
+    } catch (err: any) {
+      setStatus("Failed to fetch bothRevealed: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePlayerARevealed = async () => {
+    if (!contract) return;
+    setLoading(true);
+    try {
+      const res = await contract.methods.playerARevealed().call();
+      setPlayerARevealed(res ? "true" : "false");
+    } catch (err: any) {
+      setStatus("Failed to fetch playerARevealed: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePlayerBRevealed = async () => {
+    if (!contract) return;
+    setLoading(true);
+    try {
+      const res = await contract.methods.playerBRevealed().call();
+      setPlayerBRevealed(res ? "true" : "false");
+    } catch (err: any) {
+      setStatus("Failed to fetch playerBRevealed: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleRevealTimeLeft = async () => {
     if (!contract) return;
+    setLoading(true);
     try {
       const res = await contract.methods.revealTimeLeft().call();
       setRevealTimeLeft(res.toString());
     } catch (err: any) {
-      console.error("Failed to fetch revealTimeLeft: " + err.message);
+      setStatus("Failed to fetch revealTimeLeft: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReveal = async () => {
+    if (!contract || !web3 || !account) return;
+    setLoading(true);
+    setStatus("");
+    try {
+      const tx = contract.methods.reveal(revealMove);
+      const gas = await tx.estimateGas({ from: account });
+      const result = await (globalThis as any).ethereum.request({
+        method: "eth_sendTransaction",
+        params: [
+          {
+            from: account,
+            to: config?.GAME_CONTRACT_ADDRESS,
+            data: tx.encodeABI(),
+            gas: web3.utils.toHex(gas),
+            chainId: web3.utils.toHex(await web3.eth.net.getId()),
+          },
+        ],
+      });
+      setStatus("Reveal tx sent: " + result);
+    } catch (err: any) {
+      setStatus("Reveal failed: " + err.message);
+    } finally {
+      setLoading(false);
     }
   };
   return (

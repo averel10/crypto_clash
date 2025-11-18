@@ -19,7 +19,6 @@ export default function Clash() {
 
   const [registerGameId, setRegisterGameId] = useState<string>("0");
   const [registerBet, setRegisterBet] = useState<string>("");
-  const [revealMove, setRevealMove] = useState<string>("");
   // State for read-only contract calls
   const [betMin, setBetMin] = useState<string>("");
   const [activeGameIds, setActiveGameIds] = useState<string>("");
@@ -31,46 +30,6 @@ export default function Clash() {
   const [pastGame, setPastGame] = useState<any>(null);
   const [pastGamesCount, setPastGamesCount] = useState<string>("");
   const [whoAmI, setWhoAmI] = useState<string>("");
-  const [bothRevealed, setBothRevealed] = useState<string>("");
-  const [playerARevealed, setPlayerARevealed] = useState<string>("");
-  const [playerBRevealed, setPlayerBRevealed] = useState<string>("");
-  // Reveal phase read-only handlers
-  const handleBothRevealed = async () => {
-    if (!contract) return;
-    setLoading(true);
-    try {
-      const res = await contract.methods.bothRevealed().call();
-      setBothRevealed(res ? "true" : "false");
-    } catch (err: any) {
-      setStatus("Failed to fetch bothRevealed: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-  const handlePlayerARevealed = async () => {
-    if (!contract) return;
-    setLoading(true);
-    try {
-      const res = await contract.methods.playerARevealed().call();
-      setPlayerARevealed(res ? "true" : "false");
-    } catch (err: any) {
-      setStatus("Failed to fetch playerARevealed: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-  const handlePlayerBRevealed = async () => {
-    if (!contract) return;
-    setLoading(true);
-    try {
-      const res = await contract.methods.playerBRevealed().call();
-      setPlayerBRevealed(res ? "true" : "false");
-    } catch (err: any) {
-      setStatus("Failed to fetch playerBRevealed: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
   // Read-only contract function handlers
   const handleGetBetMin = async () => {
     if (!contract || !web3) return;
@@ -245,33 +204,6 @@ export default function Clash() {
     }
   };
 
-  const handleReveal = async () => {
-    if (!contract || !web3 || !account) return;
-    setLoading(true);
-    setStatus("");
-    try {
-      const tx = contract.methods.reveal(revealMove);
-      const gas = await tx.estimateGas({ from: account });
-      const result = await (globalThis as any).ethereum.request({
-        method: "eth_sendTransaction",
-        params: [
-          {
-            from: account,
-            to: config?.GAME_CONTRACT_ADDRESS,
-            data: tx.encodeABI(),
-            gas: web3.utils.toHex(gas),
-            chainId: web3.utils.toHex(await web3.eth.net.getId()),
-          },
-        ],
-      });
-      setStatus("Reveal tx sent: " + result);
-    } catch (err: any) {
-      setStatus("Reveal failed: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 font-sans">
       <main className="w-full max-w-3xl mx-auto py-12 px-6">
@@ -372,18 +304,11 @@ export default function Clash() {
             )}
             {phase === "reveal" && (
               <Reveal
-                revealMove={revealMove}
-                setRevealMove={setRevealMove}
-                handleReveal={handleReveal}
-                loading={loading}
                 account={account}
                 contract={contract}
-                bothRevealed={bothRevealed}
-                handleBothRevealed={handleBothRevealed}
-                playerARevealed={playerARevealed}
-                handlePlayerARevealed={handlePlayerARevealed}
-                playerBRevealed={playerBRevealed}
-                handlePlayerBRevealed={handlePlayerBRevealed}
+                config={config}
+                web3={web3}
+                setStatus={setStatus}
               />
             )}
           </div>
