@@ -59,6 +59,11 @@ export default function Clash() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 font-sans">
       <main className="w-full max-w-3xl mx-auto py-12 px-6">
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8">
+          <img
+            src="web-app-manifest-192x192.png"
+            alt="Crypto Clash Logo"
+            className="mx-auto mb-4 w-40 h-40"
+          />
           <h1 className="text-4xl font-bold text-center mb-2 text-slate-900 dark:text-white">
             Crypto Clash
           </h1>
