@@ -12,128 +12,9 @@ export default function Clash() {
   const [contract, setContract] = useState<any>(null);
   const [account, setAccount] = useState<string>("");
   const [status, setStatus] = useState<string>("");
-  const [loading, setLoading] = useState(false);
 
   // Inputs for contract functions
   const [phase, setPhase] = useState<"lobby" | "commit" | "reveal">("lobby");
-
-  const [registerGameId, setRegisterGameId] = useState<string>("0");
-  const [registerBet, setRegisterBet] = useState<string>("");
-  // State for read-only contract calls
-  const [betMin, setBetMin] = useState<string>("");
-  const [activeGameIds, setActiveGameIds] = useState<string>("");
-  const [contractBalance, setContractBalance] = useState<string>("");
-  const [gameDetailsId, setGameDetailsId] = useState<string>("");
-  const [gameDetails, setGameDetails] = useState<any>(null);
-  const [myActiveGameId, setMyActiveGameId] = useState<string>("");
-  const [pastGameIndex, setPastGameIndex] = useState<string>("");
-  const [pastGame, setPastGame] = useState<any>(null);
-  const [pastGamesCount, setPastGamesCount] = useState<string>("");
-  const [whoAmI, setWhoAmI] = useState<string>("");
-  // Read-only contract function handlers
-  const handleGetBetMin = async () => {
-    if (!contract || !web3) return;
-    setLoading(true);
-    try {
-      const res = await contract.methods.BET_MIN().call();
-      setBetMin(web3.utils.fromWei(res, "ether") + " ETH");
-    } catch (err: any) {
-      setStatus("Failed to fetch BET_MIN: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-  const handleGetActiveGameIds = async () => {
-    if (!contract) return;
-    setLoading(true);
-    try {
-      const res = await contract.methods.getActiveGameIds().call();
-      setActiveGameIds(res.join(", "));
-    } catch (err: any) {
-      setStatus("Failed to fetch active game IDs: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-  const handleGetContractBalance = async () => {
-    if (!contract || !web3) return;
-    setLoading(true);
-    try {
-      const res = await contract.methods.getContractBalance().call();
-      setContractBalance(web3.utils.fromWei(res, "ether") + " ETH");
-    } catch (err: any) {
-      setStatus("Failed to fetch contract balance: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-  const handleGetGameDetails = async () => {
-    if (!contract) return;
-    setLoading(true);
-    try {
-      const res = await contract.methods
-        .getGameDetails(Number(gameDetailsId))
-        .call();
-      setGameDetails(res);
-    } catch (err: any) {
-      setStatus("Failed to fetch game details: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-  const handleGetMyActiveGameId = async () => {
-    if (!contract || !account) return;
-    setLoading(true);
-    try {
-      const res = await contract.methods
-        .getMyActiveGameId()
-        .call({ from: account });
-      setMyActiveGameId(res.toString());
-    } catch (err: any) {
-      setStatus("Failed to fetch my active game ID: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-  const handleGetPastGame = async () => {
-    if (!contract) return;
-    setLoading(true);
-    try {
-      const res = await contract.methods
-        .getPastGame(Number(pastGameIndex))
-        .call();
-      setPastGame(res);
-    } catch (err: any) {
-      setStatus("Failed to fetch past game: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-  const handleGetPastGamesCount = async () => {
-    if (!contract) return;
-    setLoading(true);
-    try {
-      const res = await contract.methods.getPastGamesCount().call();
-      setPastGamesCount(res.toString());
-    } catch (err: any) {
-      setStatus("Failed to fetch past games count: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-  const handleWhoAmI = async () => {
-    if (!contract || !account) return;
-    setLoading(true);
-    try {
-      const res = await contract.methods.whoAmI().call({ from: account });
-      setWhoAmI(res.toString());
-    } catch (err: any) {
-      setStatus("Failed to fetch whoAmI: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-  // (Removed unused inputs and state)
 
   // Load config and contract
   useEffect(() => {
@@ -168,41 +49,6 @@ export default function Clash() {
     };
     loadConfig();
   }, []);
-
-  // (Removed unused helpers)
-
-  // Contract function handlers
-  const handleRegister = async () => {
-    if (!contract || !web3 || !account) return;
-    setLoading(true);
-    setStatus("");
-    try {
-      console.log(registerBet)
-      const bet = web3.utils.toWei(registerBet || "0.01", "ether");
-      console.log(bet)
-      console.log(web3.utils.toHex(bet))
-      const tx = contract.methods.register(Number(registerGameId || 0));
-      const gas = await tx.estimateGas({ from: account, value: bet });
-      const result = await (globalThis as any).ethereum.request({
-        method: "eth_sendTransaction",
-        params: [
-          {
-            from: account,
-            to: config?.GAME_CONTRACT_ADDRESS,
-            data: tx.encodeABI(),
-            value: web3.utils.numberToHex(bet),
-            gas: web3.utils.toHex(gas),
-            chainId: web3.utils.toHex(await web3.eth.net.getId()),
-          },
-        ],
-      });
-      setStatus("Register tx sent: " + result);
-    } catch (err: any) {
-      setStatus("Register failed: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 font-sans">
@@ -263,34 +109,11 @@ export default function Clash() {
           <div className="space-y-6">
             {phase === "lobby" && (
               <Lobby
-                registerGameId={registerGameId}
-                setRegisterGameId={setRegisterGameId}
-                registerBet={registerBet}
-                setRegisterBet={setRegisterBet}
-                handleRegister={handleRegister}
-                loading={loading}
                 account={account}
                 contract={contract}
-                betMin={betMin}
-                handleGetBetMin={handleGetBetMin}
-                activeGameIds={activeGameIds}
-                handleGetActiveGameIds={handleGetActiveGameIds}
-                contractBalance={contractBalance}
-                handleGetContractBalance={handleGetContractBalance}
-                gameDetailsId={gameDetailsId}
-                setGameDetailsId={setGameDetailsId}
-                gameDetails={gameDetails}
-                handleGetGameDetails={handleGetGameDetails}
-                myActiveGameId={myActiveGameId}
-                handleGetMyActiveGameId={handleGetMyActiveGameId}
-                pastGameIndex={pastGameIndex}
-                setPastGameIndex={setPastGameIndex}
-                pastGame={pastGame}
-                handleGetPastGame={handleGetPastGame}
-                pastGamesCount={pastGamesCount}
-                handleGetPastGamesCount={handleGetPastGamesCount}
-                whoAmI={whoAmI}
-                handleWhoAmI={handleWhoAmI}
+                config={config}
+                web3={web3}
+                setStatus={setStatus}
               />
             )}
             {phase === "commit" && (
