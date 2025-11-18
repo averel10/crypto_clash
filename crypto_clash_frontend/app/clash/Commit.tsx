@@ -1,5 +1,7 @@
 import { useState } from "react";
 import Web3 from "web3";
+import { Button } from "./Button";
+import { Input } from "./Input";
 
 interface CommitProps {
   account: string;
@@ -64,28 +66,28 @@ export default function Commit({
   return (
     <div className="border p-4 rounded-lg">
       <h2 className="font-semibold mb-2">play(bytes32 encrMove)</h2>
-      <input
+      <Input
         type="text"
         placeholder="Encrypted Move (bytes32)"
         value={playMove}
         onChange={(e) => setPlayMove(e.target.value)}
-        className="border px-2 py-1 mr-2 rounded"
+        className="mr-2"
       />
-      <button
+      <Button
         onClick={handlePlay}
         disabled={loading || !account || !contract}
-        className="bg-blue-500 text-white px-4 py-2 rounded"
+        variant="primary"
       >
         Play
-      </button>
+      </Button>
 
       <div className="mt-4 space-y-2">
-        <button
+        <Button
           onClick={handleBothPlayed}
-          className="bg-gray-200 px-2 py-1 rounded"
+          variant="secondary"
         >
           bothPlayed
-        </button>
+        </Button>
         <span className="ml-2 text-xs">{bothPlayed}</span>
         <br />
       </div>

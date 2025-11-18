@@ -1,5 +1,7 @@
 import { useState } from "react";
 import Web3 from "web3";
+import { Button } from "./Button";
+import { Input } from "./Input";
 
 interface LobbyProps {
   account: string;
@@ -168,6 +170,7 @@ export default function Lobby({
       setStatus("Register tx sent: " + result);
     } catch (err: any) {
       setStatus("Register failed: " + err.message);
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -175,59 +178,59 @@ export default function Lobby({
   return (
     <div className="border p-4 rounded-lg">
       <h2 className="font-semibold mb-2">register(uint gameId) (payable)</h2>
-      <input
+      <Input
         type="text"
         placeholder="Game ID (0 = auto)"
         value={registerGameId}
         onChange={(e) => setRegisterGameId(e.target.value)}
-        className="border px-2 py-1 mr-2 rounded"
+        className="mr-2"
       />
-      <input
+      <Input
         type="number"
         min="0.01"
         step="0.01"
         placeholder="Bet in ETH (default 0.01)"
         value={registerBet}
         onChange={(e) => setRegisterBet(e.target.value)}
-        className="border px-2 py-1 mr-2 rounded"
+        className="mr-2"
       />
-      <div className="text-xs text-slate-500 mt-1">
+      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
         Enter amount in ETH (e.g., 0.01 for 0.01 ETH). Entering 1 means 1 full
         ETH.
       </div>
-      <button
+      <Button
         onClick={handleRegister}
         disabled={loading || !account || !contract}
-        className="bg-blue-500 text-white px-4 py-2 rounded"
+        variant="primary"
       >
         Register
-      </button>
+      </Button>
 
       <div className="mt-4 space-y-2">
-        <button onClick={handleGetBetMin} className="bg-gray-200 px-2 py-1 rounded">BET_MIN</button>
+        <Button onClick={handleGetBetMin} variant="secondary">BET_MIN</Button>
         <span className="ml-2 text-xs">{betMin}</span>
         <br />
-        <button onClick={handleGetActiveGameIds} className="bg-gray-200 px-2 py-1 rounded">getActiveGameIds</button>
+        <Button onClick={handleGetActiveGameIds} variant="secondary">getActiveGameIds</Button>
         <span className="ml-2 text-xs">{activeGameIds}</span>
         <br />
-        <button onClick={handleGetContractBalance} className="bg-gray-200 px-2 py-1 rounded">getContractBalance</button>
+        <Button onClick={handleGetContractBalance} variant="secondary">getContractBalance</Button>
         <span className="ml-2 text-xs">{contractBalance}</span>
         <br />
-        <input type="text" placeholder="Game ID" value={gameDetailsId} onChange={e => setGameDetailsId(e.target.value)} className="border px-2 py-1 mr-2 rounded" />
-        <button onClick={handleGetGameDetails} className="bg-gray-200 px-2 py-1 rounded">getGameDetails</button>
-        <span className="ml-2 text-xs">{gameDetails && <pre className="inline whitespace-pre-wrap">{JSON.stringify(gameDetails, null, 2)}</pre>}</span>
+        <Input type="text" placeholder="Game ID" value={gameDetailsId} onChange={e => setGameDetailsId(e.target.value)} className="mr-2" />
+        <Button onClick={handleGetGameDetails} variant="secondary">getGameDetails</Button>
+        <span className="ml-2 text-xs">{gameDetails && <pre className="inline whitespace-pre-wrap">{JSON.stringify(gameDetails, (_, v) => typeof v === 'bigint' ? v.toString() : v, 2)}</pre>}</span>
         <br />
-        <button onClick={handleGetMyActiveGameId} className="bg-gray-200 px-2 py-1 rounded">getMyActiveGameId</button>
+        <Button onClick={handleGetMyActiveGameId} variant="secondary">getMyActiveGameId</Button>
         <span className="ml-2 text-xs">{myActiveGameId}</span>
         <br />
-        <input type="text" placeholder="Past Game Index" value={pastGameIndex} onChange={e => setPastGameIndex(e.target.value)} className="border px-2 py-1 mr-2 rounded" />
-        <button onClick={handleGetPastGame} className="bg-gray-200 px-2 py-1 rounded">getPastGame</button>
-        <span className="ml-2 text-xs">{pastGame && <pre className="inline whitespace-pre-wrap">{JSON.stringify(pastGame, null, 2)}</pre>}</span>
+        <Input type="text" placeholder="Past Game Index" value={pastGameIndex} onChange={e => setPastGameIndex(e.target.value)} className="mr-2" />
+        <Button onClick={handleGetPastGame} variant="secondary">getPastGame</Button>
+        <span className="ml-2 text-xs">{pastGame && <pre className="inline whitespace-pre-wrap">{JSON.stringify(pastGame, (_, v) => typeof v === 'bigint' ? v.toString() : v, 2)}</pre>}</span>
         <br />
-        <button onClick={handleGetPastGamesCount} className="bg-gray-200 px-2 py-1 rounded">getPastGamesCount</button>
+        <Button onClick={handleGetPastGamesCount} variant="secondary">getPastGamesCount</Button>
         <span className="ml-2 text-xs">{pastGamesCount}</span>
         <br />
-        <button onClick={handleWhoAmI} className="bg-gray-200 px-2 py-1 rounded">whoAmI</button>
+        <Button onClick={handleWhoAmI} variant="secondary">whoAmI</Button>
         <span className="ml-2 text-xs">{whoAmI}</span>
       </div>
     </div>

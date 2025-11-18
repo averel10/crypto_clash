@@ -1,5 +1,7 @@
 import { useState } from "react";
 import Web3 from "web3";
+import { Button } from "./Button";
+import { Input } from "./Input";
 
 interface RevealProps {
   account: string;
@@ -105,52 +107,52 @@ export default function Reveal({
   return (
     <div className="border p-4 rounded-lg">
       <h2 className="font-semibold mb-2">reveal(string clearMove)</h2>
-      <input
+      <Input
         type="text"
         placeholder="Clear Move (e.g. 1-password)"
         value={revealMove}
         onChange={(e) => setRevealMove(e.target.value)}
-        className="border px-2 py-1 mr-2 rounded"
+        className="mr-2"
       />
-      <button
+      <Button
         onClick={handleReveal}
         disabled={loading || !account || !contract}
-        className="bg-blue-500 text-white px-4 py-2 rounded"
+        variant="primary"
       >
         Reveal
-      </button>
+      </Button>
 
       <div className="mt-4 space-y-2">
-        <button
+        <Button
           onClick={handleBothRevealed}
-          className="bg-gray-200 px-2 py-1 rounded"
+          variant="secondary"
         >
           bothRevealed
-        </button>
+        </Button>
         <span className="ml-2 text-xs">{bothRevealed}</span>
         <br />
-        <button
+        <Button
           onClick={handlePlayerARevealed}
-          className="bg-gray-200 px-2 py-1 rounded"
+          variant="secondary"
         >
           playerARevealed
-        </button>
+        </Button>
         <span className="ml-2 text-xs">{playerARevealed}</span>
         <br />
-        <button
+        <Button
           onClick={handlePlayerBRevealed}
-          className="bg-gray-200 px-2 py-1 rounded"
+          variant="secondary"
         >
           playerBRevealed
-        </button>
+        </Button>
         <span className="ml-2 text-xs">{playerBRevealed}</span>
         <br />
-        <button
+        <Button
           onClick={handleRevealTimeLeft}
-          className="bg-gray-200 px-2 py-1 rounded"
+          variant="secondary"
         >
           revealTimeLeft
-        </button>
+        </Button>
         <span className="ml-2 text-xs">{revealTimeLeft}</span>
       </div>
     </div>

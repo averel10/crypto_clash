@@ -16,6 +16,11 @@ export default function Clash() {
   // Inputs for contract functions
   const [phase, setPhase] = useState<"lobby" | "commit" | "reveal">("lobby");
 
+  // Clear status when phase changes
+  useEffect(() => {
+    setStatus("");
+  }, [phase]);
+
   // Load config and contract
   useEffect(() => {
     const loadConfig = async () => {
