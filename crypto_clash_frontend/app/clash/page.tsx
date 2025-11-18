@@ -19,7 +19,6 @@ export default function Clash() {
 
   const [registerGameId, setRegisterGameId] = useState<string>("0");
   const [registerBet, setRegisterBet] = useState<string>("");
-  const [playMove, setPlayMove] = useState<string>("");
   const [revealMove, setRevealMove] = useState<string>("");
   // State for read-only contract calls
   const [betMin, setBetMin] = useState<string>("");
@@ -32,8 +31,6 @@ export default function Clash() {
   const [pastGame, setPastGame] = useState<any>(null);
   const [pastGamesCount, setPastGamesCount] = useState<string>("");
   const [whoAmI, setWhoAmI] = useState<string>("");
-  const [bothPlayed, setBothPlayed] = useState<string>("");
-  const [revealTimeLeft, setRevealTimeLeft] = useState<string>("");
   const [bothRevealed, setBothRevealed] = useState<string>("");
   const [playerARevealed, setPlayerARevealed] = useState<string>("");
   const [playerBRevealed, setPlayerBRevealed] = useState<string>("");
@@ -70,33 +67,6 @@ export default function Clash() {
       setPlayerBRevealed(res ? "true" : "false");
     } catch (err: any) {
       setStatus("Failed to fetch playerBRevealed: " + err.message);
-      const [bothRevealed, setBothRevealed] = useState<string>("");
-      const [playerARevealed, setPlayerARevealed] = useState<string>("");
-      const [playerBRevealed, setPlayerBRevealed] = useState<string>("");
-      setLoading(false);
-    }
-  };
-  // Commit phase read-only handlers
-  const handleBothPlayed = async () => {
-    if (!contract) return;
-    setLoading(true);
-    try {
-      const res = await contract.methods.bothPlayed().call();
-      setBothPlayed(res ? "true" : "false");
-    } catch (err: any) {
-      setStatus("Failed to fetch bothPlayed: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-  const handleRevealTimeLeft = async () => {
-    if (!contract) return;
-    setLoading(true);
-    try {
-      const res = await contract.methods.revealTimeLeft().call();
-      setRevealTimeLeft(res.toString());
-    } catch (err: any) {
-      setStatus("Failed to fetch revealTimeLeft: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -167,43 +137,6 @@ export default function Clash() {
     }
   };
   const handleGetPastGame = async () => {
-    // Reveal phase read-only handlers
-    const handleBothRevealed = async () => {
-      if (!contract) return;
-      setLoading(true);
-      try {
-        const res = await contract.methods.bothRevealed().call();
-        setBothRevealed(res ? "true" : "false");
-      } catch (err: any) {
-        setStatus("Failed to fetch bothRevealed: " + err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-    const handlePlayerARevealed = async () => {
-      if (!contract) return;
-      setLoading(true);
-      try {
-        const res = await contract.methods.playerARevealed().call();
-        setPlayerARevealed(res ? "true" : "false");
-      } catch (err: any) {
-        setStatus("Failed to fetch playerARevealed: " + err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-    const handlePlayerBRevealed = async () => {
-      if (!contract) return;
-      setLoading(true);
-      try {
-        const res = await contract.methods.playerBRevealed().call();
-        setPlayerBRevealed(res ? "true" : "false");
-      } catch (err: any) {
-        setStatus("Failed to fetch playerBRevealed: " + err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
     if (!contract) return;
     setLoading(true);
     try {
@@ -307,34 +240,6 @@ export default function Clash() {
       setStatus("Register tx sent: " + result);
     } catch (err: any) {
       setStatus("Register failed: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePlay = async () => {
-    if (!contract || !web3 || !account) return;
-    setLoading(true);
-    setStatus("");
-    try {
-      // playMove should be a hex string (bytes32)
-      const tx = contract.methods.play(playMove);
-      const gas = await tx.estimateGas({ from: account });
-      const result = await (globalThis as any).ethereum.request({
-        method: "eth_sendTransaction",
-        params: [
-          {
-            from: account,
-            to: config?.GAME_CONTRACT_ADDRESS,
-            data: tx.encodeABI(),
-            gas: web3.utils.toHex(gas),
-            chainId: web3.utils.toHex(await web3.eth.net.getId()),
-          },
-        ],
-      });
-      setStatus("Play tx sent: " + result);
-    } catch (err: any) {
-      setStatus("Play failed: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -458,16 +363,11 @@ export default function Clash() {
             )}
             {phase === "commit" && (
               <Commit
-                playMove={playMove}
-                setPlayMove={setPlayMove}
-                handlePlay={handlePlay}
-                loading={loading}
                 account={account}
                 contract={contract}
-                bothPlayed={bothPlayed}
-                handleBothPlayed={handleBothPlayed}
-                revealTimeLeft={revealTimeLeft}
-                handleRevealTimeLeft={handleRevealTimeLeft}
+                config={config}
+                web3={web3}
+                setStatus={setStatus}
               />
             )}
             {phase === "reveal" && (
@@ -484,8 +384,6 @@ export default function Clash() {
                 handlePlayerARevealed={handlePlayerARevealed}
                 playerBRevealed={playerBRevealed}
                 handlePlayerBRevealed={handlePlayerBRevealed}
-                revealTimeLeft={revealTimeLeft}
-                handleRevealTimeLeft={handleRevealTimeLeft}
               />
             )}
           </div>
