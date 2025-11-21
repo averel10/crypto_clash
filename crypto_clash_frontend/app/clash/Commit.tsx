@@ -13,6 +13,7 @@ interface CommitProps {
   setSelectedMove: (move: string | null) => void;
   secret: string;
   setSecret: (secret: string) => void;
+  onBothPlayersCommitted?: () => void;
 }
 
 type Move = "1" | "2" | "3" | null;
@@ -34,10 +35,13 @@ export default function Commit({
   setSelectedMove,
   secret,
   setSecret,
+  onBothPlayersCommitted,
 }: Readonly<CommitProps>) {
   const [loading, setLoading] = useState(false);
   const [playMove, setPlayMove] = useState<string>("");
   const [bothPlayed, setBothPlayed] = useState<string>("");
+  const [autoCheckInterval, setAutoCheckInterval] = useState<NodeJS.Timeout | null>(null);
+  const [moveSubmitted, setMoveSubmitted] = useState(false);
 
   // Generate random secret on mount if not already set
   useEffect(() => {
@@ -57,20 +61,42 @@ export default function Commit({
     }
   }, [selectedMove, secret]);
 
-  // Commit phase read-only handlers
-  const handleBothPlayed = async () => {
-    if (!contract) return;
-    setLoading(true);
-    try {
-      const res = await contract.methods.bothPlayed().call({from : account});
-      setBothPlayed(res ? "true" : "false");
-    } catch (err: any) {
-      setStatus("Failed to fetch bothPlayed: " + err.message);
-    } finally {
-      setLoading(false);
+  // Auto-check if both players have committed and trigger callback
+  useEffect(() => {
+    if (!contract || !account || !playMove || bothPlayed === "true") {
+      // Clear interval if conditions not met or already both played
+      if (autoCheckInterval) clearInterval(autoCheckInterval);
+      setAutoCheckInterval(null);
+      return;
     }
-  };
 
+    // Check immediately on mount or when dependencies change
+    const checkBothPlayed = async () => {
+      try {
+        const res = await contract.methods.bothPlayed().call({ from: account });
+        if (res) {
+          setBothPlayed("true");
+          if (onBothPlayersCommitted) {
+            onBothPlayersCommitted();
+          }
+        }
+      } catch (err: any) {
+        console.error("Auto-check failed:", err.message);
+      }
+    };
+
+    checkBothPlayed();
+
+    // Set up interval to check every 2 seconds
+    const interval = setInterval(checkBothPlayed, 2000);
+    setAutoCheckInterval(interval);
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [contract, account, playMove, bothPlayed, onBothPlayersCommitted]);
+
+  // Commit phase read-only handlers
   const handlePlay = async () => {
     if (!contract || !web3 || !account || !playMove) return;
     setLoading(true);
@@ -92,6 +118,7 @@ export default function Commit({
         ],
       });
       setStatus("Play tx sent: " + result);
+      setMoveSubmitted(true);
     } catch (err: any) {
       setStatus("Play failed: " + err.message);
     } finally {
@@ -110,100 +137,95 @@ export default function Commit({
         Select Your Move
       </h2>
 
-      {/* Move Selection */}
-      <div className="mb-8">
-        <p className="text-sm text-slate-600 dark:text-slate-300 mb-4 font-medium">
-          Choose your move:
-        </p>
-        <div className="flex gap-4 justify-center">
-          {(["1", "2", "3"] as const).map((move) => (
-            <button
-              key={move}
-              onClick={() => setSelectedMove(move)}
-              className={`flex flex-col items-center justify-center p-6 rounded-lg transition-all transform ${
-                selectedMove === move
-                  ? "bg-blue-500 text-white shadow-lg scale-110"
-                  : "bg-white dark:bg-slate-600 text-slate-700 dark:text-slate-200 shadow hover:shadow-md hover:scale-105"
-              }`}
+      {moveSubmitted ? (
+        // Waiting animation after move is submitted
+        <div className="flex flex-col items-center justify-center py-16">
+          <div className="mb-6">
+            <div className="w-16 h-16 border-4 border-slate-300 dark:border-slate-500 border-t-blue-500 rounded-full animate-spin"></div>
+          </div>
+          <p className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">
+            Waiting for opponent...
+          </p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Your move has been submitted. Stand by while the other player commits.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Move Selection */}
+          <div className="mb-8">
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-4 font-medium">
+              Choose your move:
+            </p>
+            <div className="flex gap-4 justify-center">
+              {(["1", "2", "3"] as const).map((move) => (
+                <button
+                  key={move}
+                  onClick={() => setSelectedMove(move)}
+                  className={`flex flex-col items-center justify-center p-6 rounded-lg transition-all transform ${
+                    selectedMove === move
+                      ? "bg-blue-500 text-white shadow-lg scale-110"
+                      : "bg-white dark:bg-slate-600 text-slate-700 dark:text-slate-200 shadow hover:shadow-md hover:scale-105"
+                  }`}
+                >
+                  <span className="text-5xl mb-2">{MOVES[move].icon}</span>
+                  <span className="font-semibold text-sm">{MOVES[move].name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Secret Input */}
+          <div className="mb-8 bg-white dark:bg-slate-700 p-4 rounded-lg">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+              Secret:
+            </label>
+            <div className="flex gap-2">
+              <Input
+                type="text"
+                value={secret}
+                onChange={(e) => setSecret(e.target.value)}
+                placeholder="Your secret passphrase"
+                className="flex-1"
+              />
+              <Button
+                onClick={regenerateSecret}
+                variant="secondary"
+                disabled={loading}
+              >
+                🔄 New
+              </Button>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+              Keep this secret safe! It's needed to reveal your move later.
+            </p>
+          </div>
+
+          {/* Encrypted Move Display */}
+          <div className="mb-8 bg-blue-50 dark:bg-blue-900 p-4 rounded-lg">
+            <label className="block text-sm font-medium text-slate-700 dark:text-blue-200 mb-2">
+              Encrypted Move (to be sent):
+            </label>
+            <div className="bg-white dark:bg-slate-700 p-3 rounded border border-blue-200 dark:border-blue-700 overflow-x-auto">
+              <code className="text-xs text-slate-600 dark:text-slate-300 font-mono break-all">
+                {playMove || "Select a move and enter a secret"}
+              </code>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col gap-3">
+            <Button
+              onClick={handlePlay}
+              disabled={loading || !account || !contract || !selectedMove || !secret}
+              variant="primary"
+              className="w-full py-3 text-lg"
             >
-              <span className="text-5xl mb-2">{MOVES[move].icon}</span>
-              <span className="font-semibold text-sm">{MOVES[move].name}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Secret Input */}
-      <div className="mb-8 bg-white dark:bg-slate-700 p-4 rounded-lg">
-        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
-          Secret:
-        </label>
-        <div className="flex gap-2">
-          <Input
-            type="text"
-            value={secret}
-            onChange={(e) => setSecret(e.target.value)}
-            placeholder="Your secret passphrase"
-            className="flex-1"
-          />
-          <Button
-            onClick={regenerateSecret}
-            variant="secondary"
-            disabled={loading}
-          >
-            🔄 New
-          </Button>
-        </div>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-          Keep this secret safe! It's needed to reveal your move later.
-        </p>
-      </div>
-
-      {/* Encrypted Move Display */}
-      <div className="mb-8 bg-blue-50 dark:bg-blue-900 p-4 rounded-lg">
-        <label className="block text-sm font-medium text-slate-700 dark:text-blue-200 mb-2">
-          Encrypted Move (to be sent):
-        </label>
-        <div className="bg-white dark:bg-slate-700 p-3 rounded border border-blue-200 dark:border-blue-700 overflow-x-auto">
-          <code className="text-xs text-slate-600 dark:text-slate-300 font-mono break-all">
-            {playMove || "Select a move and enter a secret"}
-          </code>
-        </div>
-      </div>
-
-      {/* Action Buttons */}
-      <div className="flex flex-col gap-3">
-        <Button
-          onClick={handlePlay}
-          disabled={loading || !account || !contract || !selectedMove || !secret}
-          variant="primary"
-          className="w-full py-3 text-lg"
-        >
-          {loading ? "Submitting..." : "Submit Move"}
-        </Button>
-
-        <Button
-          onClick={handleBothPlayed}
-          disabled={loading}
-          variant="secondary"
-          className="w-full"
-        >
-          Check Both Played
-        </Button>
-        {bothPlayed && (
-          <span
-            className={`text-center text-sm font-medium ${
-              bothPlayed === "true"
-                ? "text-green-600 dark:text-green-400"
-                : "text-slate-600 dark:text-slate-400"
-            }`}
-          >
-            {bothPlayed === "true"
-              ? "✓ Both players have committed!"
-              : "Waiting for opponent..."}
-          </span>
-        )}
-      </div>
+              {loading ? "Submitting..." : "Submit Move"}
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

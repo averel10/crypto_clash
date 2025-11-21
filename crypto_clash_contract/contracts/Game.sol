@@ -228,6 +228,27 @@ contract Game {
             game.firstReveal = block.timestamp;
         }
 
+        if(
+            game.playerA.move != Moves.None &&
+            game.playerB.move != Moves.None
+        ) {
+            // Both players have revealed, compute outcome
+            if (game.playerA.move == game.playerB.move) {
+                game.outcome = Outcomes.Draw;
+            } else if (
+                (game.playerA.move == Moves.Rock &&
+                    game.playerB.move == Moves.Scissors) ||
+                (game.playerA.move == Moves.Paper &&
+                    game.playerB.move == Moves.Rock) ||
+                (game.playerA.move == Moves.Scissors &&
+                    game.playerB.move == Moves.Paper)
+            ) {
+                game.outcome = Outcomes.PlayerA;
+            } else {
+                game.outcome = Outcomes.PlayerB;
+            }
+        }
+
         return move;
     }
 
@@ -272,29 +293,10 @@ contract Game {
         uint gameId = playerToActiveGame[msg.sender];
         GameState storage game = games[gameId];
 
-        // Only calculate outcome once
-        require(game.outcome == Outcomes.None, "Outcome already determined");
-
-        Outcomes outcome;
-
-        if (game.playerA.move == game.playerB.move) {
-            outcome = Outcomes.Draw;
-        } else if (
-            (game.playerA.move == Moves.Rock &&
-                game.playerB.move == Moves.Scissors) ||
-            (game.playerA.move == Moves.Paper &&
-                game.playerB.move == Moves.Rock) ||
-            (game.playerA.move == Moves.Scissors &&
-                game.playerB.move == Moves.Paper) ||
-            (game.playerA.move != Moves.None && game.playerB.move == Moves.None)
-        ) {
-            outcome = Outcomes.PlayerA;
-        } else {
-            outcome = Outcomes.PlayerB;
-        }
-
-        // Store the outcome permanently before resetting
-        game.outcome = outcome;
+        require(
+            game.outcome != Outcomes.None,
+            "Outcome not yet determined"
+        );
 
         address payable addrA = game.playerA.addr;
         address payable addrB = game.playerB.addr;
@@ -305,9 +307,9 @@ contract Game {
 
         // Reset and cleanup
         resetGame(gameId); // Reset game before paying to avoid reentrancy attacks
-        pay(addrA, addrB, betPlayerA, outcome);
+        pay(addrA, addrB, betPlayerA, game.outcome);
 
-        return outcome;
+        return game.outcome;
     }
 
     // Pay the winner(s).

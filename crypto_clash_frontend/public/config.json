@@ -1,6 +1,6 @@
 {
     "API_URL": "http://185.48.228.49:8545",
-    "CONTRACT_ADDRESS": "0x8aF379ED8C452612676ACB856E26955237358944",
+    "CONTRACT_ADDRESS": "0x6da7dE8330EF1ff087C66e61Aa87FbC29E9b2869",
     "ABI": [
         {
             "inputs": [
@@ -59,7 +59,7 @@
             "type": "function"
         }
     ],
-    "GAME_CONTRACT_ADDRESS": "0x267d1b8bf8C13ea60D39F90cC68AEc4b8389bb64",
+    "GAME_CONTRACT_ADDRESS": "0x503d096a9a163180F79B1AC2F1d9F7C63f5DC75a",
     "GAME_ABI": [
         {
             "inputs": [],
