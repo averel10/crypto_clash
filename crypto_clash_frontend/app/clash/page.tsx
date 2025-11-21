@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Web3 from "web3";
-import Lobby from "./Lobby";
+import GameList from "./GameList";
 import Commit from "./Commit";
 import Reveal from "./Reveal";
 
@@ -14,7 +14,11 @@ export default function Clash() {
   const [status, setStatus] = useState<string>("");
 
   // Inputs for contract functions
-  const [phase, setPhase] = useState<"lobby" | "commit" | "reveal">("lobby");
+  const [phase, setPhase] = useState<"games" | "commit" | "reveal">("games");
+
+  const handlePlayClick = (gameId: number) => {
+    setPhase("commit");
+  };
 
   // Clear status when phase changes
   useEffect(() => {
@@ -68,7 +72,7 @@ export default function Clash() {
             Crypto Clash
           </h1>
           <p className="text-center text-slate-600 dark:text-slate-300 mb-8">
-            {phase === "lobby" && "Register for a game to start."}
+            {phase === "games" && "Browse and join games."}
             {phase === "commit" && "Commit your move."}
             {phase === "reveal" && "Reveal your move."}
           </p>
@@ -86,14 +90,14 @@ export default function Clash() {
           </div>
           <div className="flex justify-center mb-6 space-x-4">
             <button
-              onClick={() => setPhase("lobby")}
+              onClick={() => setPhase("games")}
               className={`px-4 py-2 rounded ${
-                phase === "lobby"
+                phase === "games"
                   ? "bg-blue-600 text-white"
                   : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
               }`}
             >
-              Lobby
+              Games
             </button>
             <button
               onClick={() => setPhase("commit")}
@@ -117,13 +121,14 @@ export default function Clash() {
             </button>
           </div>
           <div className="space-y-6">
-            {phase === "lobby" && (
-              <Lobby
+            {phase === "games" && (
+              <GameList
                 account={account}
                 contract={contract}
                 config={config}
                 web3={web3}
                 setStatus={setStatus}
+                onPlayClick={handlePlayClick}
               />
             )}
             {phase === "commit" && (
@@ -148,7 +153,7 @@ export default function Clash() {
           {status && (
             <div
               className={`mt-6 p-4 rounded-lg ${
-                status.includes("tx sent")
+                status.includes("✅") || status.includes("tx sent")
                   ? "bg-green-50 dark:bg-green-900 text-green-800 dark:text-green-200"
                   : "bg-red-50 dark:bg-red-900 text-red-800 dark:text-red-200"
               }`}
