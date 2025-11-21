@@ -24,6 +24,36 @@ export default function Reveal({
   const [playerARevealed, setPlayerARevealed] = useState<string>("");
   const [playerBRevealed, setPlayerBRevealed] = useState<string>("");
   const [revealTimeLeft, setRevealTimeLeft] = useState<string>("");
+  const [outcome, setOutcome] = useState<string>("");
+  // getOutcome handler
+  const handleGetOutcome = async () => {
+    if (!contract || !web3 || !account) return;
+    setLoading(true);
+    setStatus("");
+    try {
+      const tx = contract.methods.getOutcome();
+      const gas = await tx.estimateGas({ from: account });
+      const result = await (globalThis as any).ethereum.request({
+        method: "eth_sendTransaction",
+        params: [
+          {
+            from: account,
+            to: config?.GAME_CONTRACT_ADDRESS,
+            data: tx.encodeABI(),
+            gas: web3.utils.toHex(gas),
+            chainId: web3.utils.toHex(await web3.eth.net.getId()),
+          },
+        ],
+      });
+      setStatus("getOutcome tx sent: " + result);
+      setOutcome("Transaction sent: " + result);
+    } catch (err: any) {
+      setStatus("getOutcome failed: " + err.message);
+      setOutcome("");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Reveal phase read-only handlers
   const handleBothRevealed = async () => {
@@ -121,6 +151,17 @@ export default function Reveal({
       >
         Reveal
       </Button>
+
+      <div className="mt-4">
+        <Button
+          onClick={handleGetOutcome}
+          disabled={loading || !account || !contract}
+          variant="primary"
+        >
+          getOutcome
+        </Button>
+        <span className="ml-2 text-xs">{outcome}</span>
+      </div>
 
       <div className="mt-4 space-y-2">
         <Button
