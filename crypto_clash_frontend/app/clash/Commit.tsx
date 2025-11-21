@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Web3 from "web3";
 import { Button } from "./Button";
 import { Input } from "./Input";
@@ -9,7 +9,20 @@ interface CommitProps {
   config: Config | null;
   web3: Web3 | null;
   setStatus: (status: string) => void;
+  selectedMove: string | null;
+  setSelectedMove: (move: string | null) => void;
+  secret: string;
+  setSecret: (secret: string) => void;
 }
+
+type Move = "1" | "2" | "3" | null;
+type MoveName = "Rock" | "Paper" | "Scissors";
+
+const MOVES: Record<string, { name: MoveName; icon: string }> = {
+  "1": { name: "Rock", icon: "✊" },
+  "2": { name: "Paper", icon: "✋" },
+  "3": { name: "Scissors", icon: "✌️" },
+};
 
 export default function Commit({
   account,
@@ -17,17 +30,39 @@ export default function Commit({
   config,
   web3,
   setStatus,
+  selectedMove,
+  setSelectedMove,
+  secret,
+  setSecret,
 }: Readonly<CommitProps>) {
   const [loading, setLoading] = useState(false);
   const [playMove, setPlayMove] = useState<string>("");
   const [bothPlayed, setBothPlayed] = useState<string>("");
+
+  // Generate random secret on mount if not already set
+  useEffect(() => {
+    if (!secret) {
+      const randomHex = Math.random().toString(16).slice(2, 18);
+      setSecret(randomHex);
+    }
+  }, []);
+
+  // Update encrypted move when move or secret changes
+  useEffect(() => {
+    if (selectedMove && secret) {
+      const clearMove = `${selectedMove}-${secret}`;
+      // Use keccak256 (Ethereum's standard hash function)
+      const hash = Web3.utils.keccak256(clearMove);
+      setPlayMove(hash);
+    }
+  }, [selectedMove, secret]);
 
   // Commit phase read-only handlers
   const handleBothPlayed = async () => {
     if (!contract) return;
     setLoading(true);
     try {
-      const res = await contract.methods.bothPlayed().call();
+      const res = await contract.methods.bothPlayed().call({from : account});
       setBothPlayed(res ? "true" : "false");
     } catch (err: any) {
       setStatus("Failed to fetch bothPlayed: " + err.message);
@@ -37,7 +72,7 @@ export default function Commit({
   };
 
   const handlePlay = async () => {
-    if (!contract || !web3 || !account) return;
+    if (!contract || !web3 || !account || !playMove) return;
     setLoading(true);
     setStatus("");
     try {
@@ -63,33 +98,111 @@ export default function Commit({
       setLoading(false);
     }
   };
-  return (
-    <div className="border p-4 rounded-lg">
-      <h2 className="font-semibold mb-2">play(bytes32 encrMove)</h2>
-      <Input
-        type="text"
-        placeholder="Encrypted Move (bytes32)"
-        value={playMove}
-        onChange={(e) => setPlayMove(e.target.value)}
-        className="mr-2"
-      />
-      <Button
-        onClick={handlePlay}
-        disabled={loading || !account || !contract}
-        variant="primary"
-      >
-        Play
-      </Button>
 
-      <div className="mt-4 space-y-2">
+  const regenerateSecret = () => {
+    const randomHex = Math.random().toString(16).slice(2, 18);
+    setSecret(randomHex);
+  };
+
+  return (
+    <div className="border p-6 rounded-lg bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-800">
+      <h2 className="font-semibold text-lg mb-6 text-slate-900 dark:text-white">
+        Select Your Move
+      </h2>
+
+      {/* Move Selection */}
+      <div className="mb-8">
+        <p className="text-sm text-slate-600 dark:text-slate-300 mb-4 font-medium">
+          Choose your move:
+        </p>
+        <div className="flex gap-4 justify-center">
+          {(["1", "2", "3"] as const).map((move) => (
+            <button
+              key={move}
+              onClick={() => setSelectedMove(move)}
+              className={`flex flex-col items-center justify-center p-6 rounded-lg transition-all transform ${
+                selectedMove === move
+                  ? "bg-blue-500 text-white shadow-lg scale-110"
+                  : "bg-white dark:bg-slate-600 text-slate-700 dark:text-slate-200 shadow hover:shadow-md hover:scale-105"
+              }`}
+            >
+              <span className="text-5xl mb-2">{MOVES[move].icon}</span>
+              <span className="font-semibold text-sm">{MOVES[move].name}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Secret Input */}
+      <div className="mb-8 bg-white dark:bg-slate-700 p-4 rounded-lg">
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+          Secret:
+        </label>
+        <div className="flex gap-2">
+          <Input
+            type="text"
+            value={secret}
+            onChange={(e) => setSecret(e.target.value)}
+            placeholder="Your secret passphrase"
+            className="flex-1"
+          />
+          <Button
+            onClick={regenerateSecret}
+            variant="secondary"
+            disabled={loading}
+          >
+            🔄 New
+          </Button>
+        </div>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+          Keep this secret safe! It's needed to reveal your move later.
+        </p>
+      </div>
+
+      {/* Encrypted Move Display */}
+      <div className="mb-8 bg-blue-50 dark:bg-blue-900 p-4 rounded-lg">
+        <label className="block text-sm font-medium text-slate-700 dark:text-blue-200 mb-2">
+          Encrypted Move (to be sent):
+        </label>
+        <div className="bg-white dark:bg-slate-700 p-3 rounded border border-blue-200 dark:border-blue-700 overflow-x-auto">
+          <code className="text-xs text-slate-600 dark:text-slate-300 font-mono break-all">
+            {playMove || "Select a move and enter a secret"}
+          </code>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex flex-col gap-3">
+        <Button
+          onClick={handlePlay}
+          disabled={loading || !account || !contract || !selectedMove || !secret}
+          variant="primary"
+          className="w-full py-3 text-lg"
+        >
+          {loading ? "Submitting..." : "Submit Move"}
+        </Button>
+
         <Button
           onClick={handleBothPlayed}
+          disabled={loading}
           variant="secondary"
+          className="w-full"
         >
-          bothPlayed
+          Check Both Played
         </Button>
-        <span className="ml-2 text-xs">{bothPlayed}</span>
-        <br />
+        {bothPlayed && (
+          <span
+            className={`text-center text-sm font-medium ${
+              bothPlayed === "true"
+                ? "text-green-600 dark:text-green-400"
+                : "text-slate-600 dark:text-slate-400"
+            }`}
+          >
+            {bothPlayed === "true"
+              ? "✓ Both players have committed!"
+              : "Waiting for opponent..."}
+          </span>
+        )}
       </div>
     </div>
   );

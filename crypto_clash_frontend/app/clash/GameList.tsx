@@ -55,7 +55,6 @@ export default function GameList({
       }
 
       setGames(gameDetails);
-
       // Check which games the user is participating in
       if (account) {
         const userGames = new Set<number>();
@@ -85,7 +84,7 @@ export default function GameList({
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [contract, web3]);
+  }, [contract, web3, account]);
 
   // Join an existing game
   const handleJoinGame = async (gameId: number, bet: string) => {

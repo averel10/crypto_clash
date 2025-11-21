@@ -204,7 +204,7 @@ contract Game {
         uint gameId = playerToActiveGame[msg.sender];
         GameState storage game = games[gameId];
 
-        bytes32 encrMove = sha256(abi.encodePacked(clearMove)); // Hash of clear input (= "move-password")
+        bytes32 encrMove = keccak256(abi.encodePacked(clearMove)); // Hash of clear input (= "move-password")
         Moves move = Moves(getFirstChar(clearMove)); // Actual move (Rock / Paper / Scissors)
 
         // If move invalid, exit
@@ -381,7 +381,7 @@ contract Game {
         if (gameId == 0) return false;
 
         GameState storage game = games[gameId];
-        return (game.playerA.encrMove != 0x0 && game.playerB.encrMove != 0x0);
+        return (game.playerA.encrMove != bytes32(0) && game.playerB.encrMove != bytes32(0));
     }
 
     // Return 'true' if both players have revealed their move, 'false' otherwise.

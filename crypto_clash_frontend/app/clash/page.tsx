@@ -15,6 +15,8 @@ export default function Clash() {
 
   // Inputs for contract functions
   const [phase, setPhase] = useState<"games" | "commit" | "reveal">("games");
+  const [selectedMove, setSelectedMove] = useState<string | null>(null);
+  const [secret, setSecret] = useState<string>("");
 
   const handlePlayClick = (gameId: number) => {
     setPhase("commit");
@@ -138,6 +140,10 @@ export default function Clash() {
                 config={config}
                 web3={web3}
                 setStatus={setStatus}
+                selectedMove={selectedMove}
+                setSelectedMove={setSelectedMove}
+                secret={secret}
+                setSecret={setSecret}
               />
             )}
             {phase === "reveal" && (
@@ -147,6 +153,8 @@ export default function Clash() {
                 config={config}
                 web3={web3}
                 setStatus={setStatus}
+                selectedMove={selectedMove}
+                secret={secret}
               />
             )}
           </div>
