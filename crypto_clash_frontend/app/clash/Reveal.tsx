@@ -319,6 +319,30 @@ export default function Reveal({
               {outcomeData.name}
             </h3>
 
+            {/* Display ETH winnings */}
+            {gameDetails && (
+              <div className="mt-4 pt-4 border-t border-current border-opacity-20">
+                <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">
+                  {outcome === 1 ? "You Won" : outcome === 3 ? "Draw" : "You Lost"}
+                </p>
+                <p className="text-3xl font-bold">
+                  {outcome === 1 ? (
+                    <>
+                      +{web3?.utils.fromWei(String(BigInt(gameDetails.initialBet) * BigInt(2)), "ether")} ETH
+                    </>
+                  ) : outcome === 3 ? (
+                    <>
+                      +{web3?.utils.fromWei(gameDetails.initialBet, "ether")} ETH
+                    </>
+                  ) : (
+                    <>
+                      -{web3?.utils.fromWei(gameDetails.initialBet, "ether")} ETH
+                    </>
+                  )}
+                </p>
+              </div>
+            )}
+
             {/* Show Claim Coins button only on win or draw and if game is active */}
             {(outcome === 1 || outcome === 3) && gameDetails?.isActive && (
               <Button
