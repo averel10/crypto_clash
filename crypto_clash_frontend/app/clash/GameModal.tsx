@@ -58,6 +58,39 @@ export default function GameModal({
     secret: string;
     selectedMove: string | null;
     playMove: string;
+    timestamp?: number;
+  };
+
+  // Constants for expiration
+  const STORAGE_EXPIRATION_TIME = 60 * 60 * 1000; // 1 hour in milliseconds
+
+  // Function to check and clean expired storage entries
+  const cleanExpiredStorage = () => {
+    const now = Date.now();
+    const keysToDelete: string[] = [];
+
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key && key.startsWith("game_")) {
+        try {
+          const storedData = sessionStorage.getItem(key);
+          if (storedData) {
+            const parsed: GameStorage = JSON.parse(storedData);
+            if (parsed.timestamp && now - parsed.timestamp > STORAGE_EXPIRATION_TIME) {
+              keysToDelete.push(key);
+            }
+          }
+        } catch (err) {
+          console.error(`Failed to parse or clean storage key ${key}:`, err);
+        }
+      }
+    }
+
+    // Delete expired entries
+    keysToDelete.forEach(key => {
+      sessionStorage.removeItem(key);
+      console.log(`Cleared expired session storage: ${key}`);
+    });
   };
 
   // Storage helper functions
@@ -77,7 +110,7 @@ export default function GameModal({
 
   const saveGameData = (updates: Partial<GameStorage>) => {
     const storedData = sessionStorage.getItem(getGameStorageKey());
-    let currentData: GameStorage = { secret: "", selectedMove: null, playMove: "" };
+    let currentData: GameStorage = { secret: "", selectedMove: null, playMove: "", timestamp: Date.now() };
     
     if (storedData) {
       try {
@@ -87,7 +120,7 @@ export default function GameModal({
       }
     }
     
-    const updatedData = { ...currentData, ...updates };
+    const updatedData = { ...currentData, ...updates, timestamp: Date.now() };
     sessionStorage.setItem(getGameStorageKey(), JSON.stringify(updatedData));
   };
 
@@ -172,6 +205,12 @@ export default function GameModal({
   useEffect(() => {
     loadFromStorage();
   }, [gameDetails]);
+
+  // Set up interval to clean expired storage entries every 5 minutes
+  useEffect(() => {
+    const cleanupIntervalId = setInterval(cleanExpiredStorage, 5 * 60 * 1000);
+    return () => clearInterval(cleanupIntervalId);
+  }, []);
 
   const handleClose = () => {
     // Reset state when closing
