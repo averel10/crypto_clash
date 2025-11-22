@@ -59,7 +59,7 @@
             "type": "function"
         }
     ],
-    "GAME_CONTRACT_ADDRESS": "0x7C56Fd34374F0244402aDDf5E940490C1a53E92E",
+    "GAME_CONTRACT_ADDRESS": "0x6B2d5cE3C7374000c3E0C25Bf3Bddc460aC70C08",
     "GAME_ABI": [
         {
             "inputs": [],

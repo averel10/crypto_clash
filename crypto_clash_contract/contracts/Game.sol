@@ -4,8 +4,8 @@ pragma solidity >=0.7.3;
 
 contract Game {
     uint public constant BET_MIN = 1e16; // The minimum bet (1 BLD)
-    uint public constant REVEAL_TIMEOUT = 0.5 minutes; // Max delay of revelation phase
-    uint public constant COMMIT_TIMEOUT = 0.5 minutes; // Max delay of commit phase
+    uint public constant REVEAL_TIMEOUT = 10 minutes; // Max delay of revelation phase
+    uint public constant COMMIT_TIMEOUT = 10 minutes; // Max delay of commit phase
 
     enum Moves {
         None,
