@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import Web3 from "web3";
 import { Button } from "./Button";
 import { Input } from "./Input";
+import { GameDetails } from "./GameModal";
+import { showToast } from "@/app/lib/toast";
 
 interface CommitProps {
   account: string;
@@ -12,11 +14,12 @@ interface CommitProps {
   selectedMove: string | null;
   setSelectedMove: (move: string | null) => void;
   secret: string;
+  whoAmI: "player1" | "player2" | "";
+  gameDetails: GameDetails | null;
   setSecret: (secret: string) => void;
-  onBothPlayersCommitted?: () => void;
+  savePlayMove: (playMove: string) => void;
 }
 
-type Move = "1" | "2" | "3" | null;
 type MoveName = "Rock" | "Paper" | "Scissors";
 
 const MOVES: Record<string, { name: MoveName; icon: string }> = {
@@ -35,21 +38,16 @@ export default function Commit({
   setSelectedMove,
   secret,
   setSecret,
-  onBothPlayersCommitted,
+  savePlayMove,
+  whoAmI,
+  gameDetails
 }: Readonly<CommitProps>) {
   const [loading, setLoading] = useState(false);
   const [playMove, setPlayMove] = useState<string>("");
+  const [selfPlayed, setSelfPlayed] = useState<string>("");
   const [bothPlayed, setBothPlayed] = useState<string>("");
   const [autoCheckInterval, setAutoCheckInterval] = useState<NodeJS.Timeout | null>(null);
   const [moveSubmitted, setMoveSubmitted] = useState(false);
-
-  // Generate random secret on mount if not already set
-  useEffect(() => {
-    if (!secret) {
-      const randomHex = Math.random().toString(16).slice(2, 18);
-      setSecret(randomHex);
-    }
-  }, []);
 
   // Update encrypted move when move or secret changes
   useEffect(() => {
@@ -58,27 +56,42 @@ export default function Commit({
       // Use keccak256 (Ethereum's standard hash function)
       const hash = Web3.utils.keccak256(clearMove);
       setPlayMove(hash);
+      // Persist to sessionStorage through parent
+      savePlayMove(hash);
     }
-  }, [selectedMove, secret]);
+  }, [selectedMove, secret, savePlayMove]);
 
   // Auto-check if both players have committed and trigger callback
   useEffect(() => {
-    if (!contract || !account || !playMove || bothPlayed === "true") {
+    if (!contract || !account || !whoAmI || !gameDetails) {
       // Clear interval if conditions not met or already both played
       if (autoCheckInterval) clearInterval(autoCheckInterval);
       setAutoCheckInterval(null);
       return;
     }
 
+    const checkSelfPlayed = async () => {
+      try {
+        const encrMove = gameDetails[whoAmI === "player1" ? "playerA" : "playerB"].encrMove;
+
+        setSelfPlayed(Number(encrMove) !== 0 ? "true" : "false");
+      } catch (err: any) {
+        console.error("Auto-check self played failed:", err.message);
+      }
+    };
+
+    checkSelfPlayed();
+
     // Check immediately on mount or when dependencies change
     const checkBothPlayed = async () => {
       try {
-        const res = await contract.methods.bothPlayed().call({ from: account });
+        const playerAEncrMove = gameDetails.playerA.encrMove;
+        const playerBEncrMove = gameDetails.playerB.encrMove;
+
+        const res = Number(playerAEncrMove) !== 0 && Number(playerBEncrMove) !== 0;
+        console.log("Both played check:", res);
         if (res) {
           setBothPlayed("true");
-          if (onBothPlayersCommitted) {
-            onBothPlayersCommitted();
-          }
         }
       } catch (err: any) {
         console.error("Auto-check failed:", err.message);
@@ -94,16 +107,15 @@ export default function Commit({
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [contract, account, playMove, bothPlayed, onBothPlayersCommitted]);
+  }, [contract, account, playMove, bothPlayed, gameDetails]);
 
   // Commit phase read-only handlers
   const handlePlay = async () => {
     if (!contract || !web3 || !account || !playMove) return;
     setLoading(true);
-    setStatus("");
     try {
       // playMove should be a hex string (bytes32)
-      const tx = contract.methods.play(playMove);
+      const tx = contract.methods.play(gameDetails?.returnGameId, playMove);
       const gas = await tx.estimateGas({ from: account });
       const result = await (globalThis as any).ethereum.request({
         method: "eth_sendTransaction",
@@ -117,10 +129,10 @@ export default function Commit({
           },
         ],
       });
-      setStatus("Play tx sent: " + result);
+      showToast("Play tx sent: " + result, "success");
       setMoveSubmitted(true);
     } catch (err: any) {
-      setStatus("Play failed: " + err.message);
+      showToast("Play failed: " + err.message, "error");
     } finally {
       setLoading(false);
     }
@@ -131,13 +143,21 @@ export default function Commit({
     setSecret(randomHex);
   };
 
+  const handleSecretChange = (value: string) => {
+    setSecret(value);
+  };
+
+  const handleMoveSelect = (move: string) => {
+    setSelectedMove(move);
+  };
+
   return (
     <div className="border p-6 rounded-lg bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-800">
       <h2 className="font-semibold text-lg mb-6 text-slate-900 dark:text-white">
         Select Your Move
       </h2>
 
-      {moveSubmitted ? (
+      {moveSubmitted || selfPlayed === "true" ? (
         // Waiting animation after move is submitted
         <div className="flex flex-col items-center justify-center py-16">
           <div className="mb-6">
@@ -161,7 +181,7 @@ export default function Commit({
               {(["1", "2", "3"] as const).map((move) => (
                 <button
                   key={move}
-                  onClick={() => setSelectedMove(move)}
+                  onClick={() => handleMoveSelect(move)}
                   className={`flex flex-col items-center justify-center p-6 rounded-lg transition-all transform ${
                     selectedMove === move
                       ? "bg-blue-500 text-white shadow-lg scale-110"
@@ -184,7 +204,7 @@ export default function Commit({
               <Input
                 type="text"
                 value={secret}
-                onChange={(e) => setSecret(e.target.value)}
+                onChange={(e) => handleSecretChange(e.target.value)}
                 placeholder="Your secret passphrase"
                 className="flex-1"
               />

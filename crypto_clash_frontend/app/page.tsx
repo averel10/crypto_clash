@@ -15,11 +15,6 @@ export default function Home() {
               Crypto Clash - Battle with others
             </Link>
           </li>
-          <li>
-            <Link href="/hello_world" className="text-blue-600 hover:bg-gray-100 hover:text-blue-800 px-2 py-1 inline-block">
-              Hello World - A simple introduction
-            </Link>
-          </li>
         </ul>
       </main>
     </div>

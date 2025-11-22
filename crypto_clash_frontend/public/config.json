@@ -59,7 +59,7 @@
             "type": "function"
         }
     ],
-    "GAME_CONTRACT_ADDRESS": "0x503d096a9a163180F79B1AC2F1d9F7C63f5DC75a",
+    "GAME_CONTRACT_ADDRESS": "0xAA7057A0203539d9BE86EfB471B831Dd833a9e22",
     "GAME_ABI": [
         {
             "inputs": [],
@@ -82,32 +82,6 @@
                     "internalType": "uint256",
                     "name": "",
                     "type": "uint256"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "bothPlayed",
-            "outputs": [
-                {
-                    "internalType": "bool",
-                    "name": "",
-                    "type": "bool"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "bothRevealed",
-            "outputs": [
-                {
-                    "internalType": "bool",
-                    "name": "",
-                    "type": "bool"
                 }
             ],
             "stateMutability": "view",
@@ -150,14 +124,68 @@
             "name": "getGameDetails",
             "outputs": [
                 {
-                    "internalType": "address",
-                    "name": "playerAAddr",
-                    "type": "address"
+                    "components": [
+                        {
+                            "internalType": "address payable",
+                            "name": "addr",
+                            "type": "address"
+                        },
+                        {
+                            "internalType": "uint256",
+                            "name": "bet",
+                            "type": "uint256"
+                        },
+                        {
+                            "internalType": "bytes32",
+                            "name": "encrMove",
+                            "type": "bytes32"
+                        },
+                        {
+                            "internalType": "enum Game.Moves",
+                            "name": "move",
+                            "type": "uint8"
+                        },
+                        {
+                            "internalType": "string",
+                            "name": "nickname",
+                            "type": "string"
+                        }
+                    ],
+                    "internalType": "struct Game.Player",
+                    "name": "playerA",
+                    "type": "tuple"
                 },
                 {
-                    "internalType": "address",
-                    "name": "playerBAddr",
-                    "type": "address"
+                    "components": [
+                        {
+                            "internalType": "address payable",
+                            "name": "addr",
+                            "type": "address"
+                        },
+                        {
+                            "internalType": "uint256",
+                            "name": "bet",
+                            "type": "uint256"
+                        },
+                        {
+                            "internalType": "bytes32",
+                            "name": "encrMove",
+                            "type": "bytes32"
+                        },
+                        {
+                            "internalType": "enum Game.Moves",
+                            "name": "move",
+                            "type": "uint8"
+                        },
+                        {
+                            "internalType": "string",
+                            "name": "nickname",
+                            "type": "string"
+                        }
+                    ],
+                    "internalType": "struct Game.Player",
+                    "name": "playerB",
+                    "type": "tuple"
                 },
                 {
                     "internalType": "uint256",
@@ -173,31 +201,10 @@
                     "internalType": "bool",
                     "name": "isActive",
                     "type": "bool"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "getLastWinner",
-            "outputs": [
-                {
-                    "internalType": "enum Game.Outcomes",
-                    "name": "",
-                    "type": "uint8"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "getMyActiveGameId",
-            "outputs": [
+                },
                 {
                     "internalType": "uint256",
-                    "name": "",
+                    "name": "returnGameId",
                     "type": "uint256"
                 }
             ],
@@ -205,7 +212,13 @@
             "type": "function"
         },
         {
-            "inputs": [],
+            "inputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "gameId",
+                    "type": "uint256"
+                }
+            ],
             "name": "getOutcome",
             "outputs": [
                 {
@@ -221,51 +234,9 @@
             "inputs": [
                 {
                     "internalType": "uint256",
-                    "name": "index",
-                    "type": "uint256"
-                }
-            ],
-            "name": "getPastGame",
-            "outputs": [
-                {
-                    "internalType": "address",
-                    "name": "playerAAddr",
-                    "type": "address"
-                },
-                {
-                    "internalType": "address",
-                    "name": "playerBAddr",
-                    "type": "address"
-                },
-                {
-                    "internalType": "uint256",
-                    "name": "initialBet",
+                    "name": "gameId",
                     "type": "uint256"
                 },
-                {
-                    "internalType": "enum Game.Outcomes",
-                    "name": "outcome",
-                    "type": "uint8"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "getPastGamesCount",
-            "outputs": [
-                {
-                    "internalType": "uint256",
-                    "name": "",
-                    "type": "uint256"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [
                 {
                     "internalType": "bytes32",
                     "name": "encrMove",
@@ -281,32 +252,6 @@
                 }
             ],
             "stateMutability": "nonpayable",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "playerARevealed",
-            "outputs": [
-                {
-                    "internalType": "bool",
-                    "name": "",
-                    "type": "bool"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "playerBRevealed",
-            "outputs": [
-                {
-                    "internalType": "bool",
-                    "name": "",
-                    "type": "bool"
-                }
-            ],
-            "stateMutability": "view",
             "type": "function"
         },
         {
@@ -336,6 +281,11 @@
         {
             "inputs": [
                 {
+                    "internalType": "uint256",
+                    "name": "gameId",
+                    "type": "uint256"
+                },
+                {
                     "internalType": "string",
                     "name": "clearMove",
                     "type": "string"
@@ -353,7 +303,13 @@
             "type": "function"
         },
         {
-            "inputs": [],
+            "inputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "gameId",
+                    "type": "uint256"
+                }
+            ],
             "name": "revealTimeLeft",
             "outputs": [
                 {
@@ -366,7 +322,13 @@
             "type": "function"
         },
         {
-            "inputs": [],
+            "inputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "gameId",
+                    "type": "uint256"
+                }
+            ],
             "name": "whoAmI",
             "outputs": [
                 {

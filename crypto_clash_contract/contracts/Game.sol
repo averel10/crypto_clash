@@ -38,9 +38,6 @@ contract Game {
         bool isActive;
     }
 
-    // Mapping from player address to their active game ID
-    mapping(address => uint) private playerToActiveGame;
-
     // Mapping from game ID to game state
     mapping(uint => GameState) private games;
 
@@ -49,9 +46,6 @@ contract Game {
 
     // Counter for generating unique game IDs
     uint private nextGameId = 1;
-
-    // Array to store completed games
-    GameState[] private pastGames;
 
     // ------------------------- Registration ------------------------- //
 
@@ -65,14 +59,6 @@ contract Game {
         _;
     }
 
-    modifier notAlreadyInGame() {
-        require(
-            playerToActiveGame[msg.sender] == 0,
-            "Player already in an active game"
-        );
-        _;
-    }
-
     // Register a player to an existing game or create a new game.
     // If gameId is 0, player will join or create the first available game.
     // Return player's ID and game ID upon successful registration.
@@ -82,12 +68,11 @@ contract Game {
         public
         payable
         validBet(gameId)
-        notAlreadyInGame
         returns (uint playerId, uint returnGameId)
     {
         // If gameId is 0, find an open game or create a new one
         if (gameId == 0) {
-            gameId = findOrCreateGame();
+            gameId = createNewGame();
         }
 
         require(games[gameId].isActive, "Game is not active");
@@ -97,7 +82,6 @@ contract Game {
         if (game.playerA.addr == address(0x0)) {
             game.playerA.addr = payable(msg.sender);
             game.initialBet = msg.value;
-            playerToActiveGame[msg.sender] = gameId;
             return (1, gameId);
         } else if (game.playerB.addr == address(0x0)) {
             require(
@@ -105,31 +89,12 @@ contract Game {
                 "Cannot play against yourself"
             );
             game.playerB.addr = payable(msg.sender);
-            playerToActiveGame[msg.sender] = gameId;
             return (2, gameId);
         }
 
         revert("Game is full");
     }
 
-    // Find an open game or create a new one
-    function findOrCreateGame() private returns (uint) {
-        // Look for a game with only one player
-        for (uint i = 0; i < gameIds.length; i++) {
-            uint gId = gameIds[i];
-            GameState storage game = games[gId];
-            if (
-                game.isActive &&
-                game.playerA.addr != address(0x0) &&
-                game.playerB.addr == address(0x0)
-            ) {
-                return gId;
-            }
-        }
-
-        // No open game found, create a new one
-        return createNewGame();
-    }
 
     // Create a new game
     function createNewGame() private returns (uint) {
@@ -145,9 +110,8 @@ contract Game {
 
     // ------------------------- Commit ------------------------- //
 
-    modifier isRegistered() {
-        uint gameId = playerToActiveGame[msg.sender];
-        require(gameId != 0, "Player not in any active game");
+    modifier isRegistered(uint gameId) {
+        require(gameId != 0, "Invalid game ID");
         require(
             msg.sender == games[gameId].playerA.addr ||
                 msg.sender == games[gameId].playerB.addr,
@@ -158,8 +122,7 @@ contract Game {
 
     // Save player's encrypted move. encrMove must be "<1|2|3>-password" hashed with sha256.
     // Return 'true' if move was valid, 'false' otherwise.
-    function play(bytes32 encrMove) public isRegistered returns (bool) {
-        uint gameId = playerToActiveGame[msg.sender];
+    function play(uint gameId, bytes32 encrMove) public isRegistered(gameId) returns (bool) {
         GameState storage game = games[gameId];
 
         // Basic sanity checks with explicit errors to help debugging
@@ -185,9 +148,8 @@ contract Game {
 
     // ------------------------- Reveal ------------------------- //
 
-    modifier commitPhaseEnded() {
-        uint gameId = playerToActiveGame[msg.sender];
-        require(gameId != 0, "Player not in any active game");
+    modifier commitPhaseEnded(uint gameId) {
+        require(gameId != 0, "Invalid game ID");
         require(
             games[gameId].playerA.encrMove != bytes32(0) &&
                 games[gameId].playerB.encrMove != bytes32(0),
@@ -199,9 +161,9 @@ contract Game {
     // Compare clear move given by the player with saved encrypted move.
     // Return clear move upon success, 'Moves.None' otherwise.
     function reveal(
+        uint gameId,
         string memory clearMove
-    ) public isRegistered commitPhaseEnded returns (Moves) {
-        uint gameId = playerToActiveGame[msg.sender];
+    ) public isRegistered(gameId) commitPhaseEnded(gameId) returns (Moves) {
         GameState storage game = games[gameId];
 
         bytes32 encrMove = keccak256(abi.encodePacked(clearMove)); // Hash of clear input (= "move-password")
@@ -273,9 +235,8 @@ contract Game {
 
     // ------------------------- Result ------------------------- //
 
-    modifier revealPhaseEnded() {
-        uint gameId = playerToActiveGame[msg.sender];
-        require(gameId != 0, "Player not in any active game");
+    modifier revealPhaseEnded(uint gameId) {
+        require(gameId != 0, "Invalid game ID");
         require(
             (games[gameId].playerA.move != Moves.None &&
                 games[gameId].playerB.move != Moves.None) ||
@@ -289,8 +250,7 @@ contract Game {
 
     // Compute the outcome and pay the winner(s).
     // Return the outcome.
-    function getOutcome() public revealPhaseEnded returns (Outcomes) {
-        uint gameId = playerToActiveGame[msg.sender];
+    function getOutcome(uint gameId) public revealPhaseEnded(gameId) returns (Outcomes) {
         GameState storage game = games[gameId];
 
         require(
@@ -301,9 +261,6 @@ contract Game {
         address payable addrA = game.playerA.addr;
         address payable addrB = game.playerB.addr;
         uint betPlayerA = game.initialBet;
-
-        // Move game to past games before resetting
-        pastGames.push(game);
 
         // Reset and cleanup
         resetGame(gameId); // Reset game before paying to avoid reentrancy attacks
@@ -320,26 +277,18 @@ contract Game {
         Outcomes outcome
     ) private {
         if (outcome == Outcomes.PlayerA) {
-            addrA.transfer(address(this).balance);
+            addrA.transfer(betPlayerA * 2);
         } else if (outcome == Outcomes.PlayerB) {
-            addrB.transfer(address(this).balance);
+            addrB.transfer(betPlayerA * 2);
         } else {
             addrA.transfer(betPlayerA);
-            addrB.transfer(address(this).balance);
+            addrB.transfer(betPlayerA);
         }
     }
 
     // Reset a specific game.
     function resetGame(uint gameId) private {
         GameState storage game = games[gameId];
-
-        // Clear player mappings
-        if (game.playerA.addr != address(0x0)) {
-            playerToActiveGame[game.playerA.addr] = 0;
-        }
-        if (game.playerB.addr != address(0x0)) {
-            playerToActiveGame[game.playerB.addr] = 0;
-        }
 
         // Mark game as inactive
         game.isActive = false;
@@ -356,8 +305,7 @@ contract Game {
     }
 
     // Return player's ID in their active game
-    function whoAmI() public view returns (uint) {
-        uint gameId = playerToActiveGame[msg.sender];
+    function whoAmI(uint gameId) public view returns (uint) {
         if (gameId == 0) {
             return 0;
         }
@@ -372,51 +320,8 @@ contract Game {
         }
     }
 
-    // Get the active game ID for the caller
-    function getMyActiveGameId() public view returns (uint) {
-        return playerToActiveGame[msg.sender];
-    }
-
-    // Return 'true' if both players have commited a move, 'false' otherwise.
-    function bothPlayed() public view returns (bool) {
-        uint gameId = playerToActiveGame[msg.sender];
-        if (gameId == 0) return false;
-
-        GameState storage game = games[gameId];
-        return (game.playerA.encrMove != bytes32(0) && game.playerB.encrMove != bytes32(0));
-    }
-
-    // Return 'true' if both players have revealed their move, 'false' otherwise.
-    function bothRevealed() public view returns (bool) {
-        uint gameId = playerToActiveGame[msg.sender];
-        if (gameId == 0) return false;
-
-        GameState storage game = games[gameId];
-        return (game.playerA.move != Moves.None &&
-            game.playerB.move != Moves.None);
-    }
-
-    // Return 'true' if player A has revealed their move, 'false' otherwise.
-    function playerARevealed() public view returns (bool) {
-        uint gameId = playerToActiveGame[msg.sender];
-        if (gameId == 0) return false;
-
-        GameState storage game = games[gameId];
-        return (game.playerA.move != Moves.None);
-    }
-
-    // Return 'true' if player B has revealed their move, 'false' otherwise.
-    function playerBRevealed() public view returns (bool) {
-        uint gameId = playerToActiveGame[msg.sender];
-        if (gameId == 0) return false;
-
-        GameState storage game = games[gameId];
-        return (game.playerB.move != Moves.None);
-    }
-
     // Return time left before the end of the revelation phase.
-    function revealTimeLeft() public view returns (int) {
-        uint gameId = playerToActiveGame[msg.sender];
+    function revealTimeLeft(uint gameId) public view returns (int) {
         if (gameId == 0) return int(REVEAL_TIMEOUT);
 
         GameState storage game = games[gameId];
@@ -424,13 +329,6 @@ contract Game {
             return int((game.firstReveal + REVEAL_TIMEOUT) - block.timestamp);
         }
         return int(REVEAL_TIMEOUT);
-    }
-
-    function getLastWinner() public view returns (Outcomes) {
-        uint gameId = playerToActiveGame[msg.sender];
-        if (gameId == 0) return Outcomes.None;
-
-        return games[gameId].outcome;
     }
 
     // ------------------------- Game Management ------------------------- //
@@ -442,21 +340,23 @@ contract Game {
         public
         view
         returns (
-            address playerAAddr,
-            address playerBAddr,
+            Player memory playerA,
+            Player memory playerB,
             uint initialBet,
             Outcomes outcome,
-            bool isActive
+            bool isActive,
+            uint returnGameId
         )
     {
         GameState storage game = games[gameId];
         require(game.gameId != 0, "Game does not exist");
         return (
-            game.playerA.addr,
-            game.playerB.addr,
+            game.playerA,
+            game.playerB,
             game.initialBet,
             game.outcome,
-            game.isActive
+            game.isActive,
+            game.gameId
         );
     }
 
@@ -482,33 +382,5 @@ contract Game {
         }
 
         return activeIds;
-    }
-
-    // Get number of past games
-    function getPastGamesCount() public view returns (uint) {
-        return pastGames.length;
-    }
-
-    // Get details of a past game by index
-    function getPastGame(
-        uint index
-    )
-        public
-        view
-        returns (
-            address playerAAddr,
-            address playerBAddr,
-            uint initialBet,
-            Outcomes outcome
-        )
-    {
-        require(index < pastGames.length, "Index out of bounds");
-        GameState storage game = pastGames[index];
-        return (
-            game.playerA.addr,
-            game.playerB.addr,
-            game.initialBet,
-            game.outcome
-        );
     }
 }

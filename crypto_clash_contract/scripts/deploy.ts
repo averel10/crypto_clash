@@ -65,15 +65,6 @@ async function main() {
    // Define contracts to deploy
    const contractsToDeploy: ContractDeploymentConfig[] = [
       {
-         name: "HelloWorld",
-         artifactPath: "testcontract.sol/HelloWorld.json",
-         deployArgs: ["Hello World!"],
-         configKeys: {
-            address: "CONTRACT_ADDRESS",
-            abi: "ABI"
-         }
-      },
-      {
          name: "Game",
          artifactPath: "Game.sol/Game.json",
          deployArgs: [],

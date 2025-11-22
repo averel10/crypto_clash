@@ -3,31 +3,25 @@
 import { useEffect, useState } from "react";
 import Web3 from "web3";
 import GameList from "./GameList";
-import Commit from "./Commit";
-import Reveal from "./Reveal";
+import GameModal from "./GameModal";
+import { showErrorToast } from "@/app/lib/toast";
 
 export default function Clash() {
   const [config, setConfig] = useState<Config | null>(null);
   const [web3, setWeb3] = useState<Web3 | null>(null);
   const [contract, setContract] = useState<any>(null);
-  const [account, setAccount] = useState<string>("");
   const [status, setStatus] = useState<string>("");
 
-  // Inputs for contract functions
-  const [phase, setPhase] = useState<"games" | "commit" | "reveal">("games");
-  const [selectedMove, setSelectedMove] = useState<string | null>(null);
-  const [secret, setSecret] = useState<string>("");
+  // Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedGameId, setSelectedGameId] = useState<number | undefined>();
   const [availableAccounts, setAvailableAccounts] = useState<string[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<string>("");
 
   const handlePlayClick = (gameId: number) => {
-    setPhase("commit");
+    setSelectedGameId(gameId);
+    setIsModalOpen(true);
   };
-
-  // Clear status when phase changes
-  useEffect(() => {
-    setStatus("");
-  }, [phase]);
 
   // Load config and contract
   useEffect(() => {
@@ -50,16 +44,13 @@ export default function Clash() {
               method: "eth_requestAccounts",
             });
             setAvailableAccounts(accounts);
-            setAccount(accounts[0]);
             setSelectedAccount(accounts[0]);
           } catch (err: any) {
-            setStatus(
-              "MetaMask not available or user denied access: " + err.message
-            );
+            showErrorToast("MetaMask not available or user denied access: " + err.message);
           }
         }
       } catch (err: any) {
-        setStatus("Failed to load config: " + err.message);
+        showErrorToast("Failed to load config: " + err.message);
       }
     };
     loadConfig();
@@ -78,9 +69,7 @@ export default function Clash() {
             Crypto Clash
           </h1>
           <p className="text-center text-slate-600 dark:text-slate-300 mb-8">
-            {phase === "games" && "Browse and join games."}
-            {phase === "commit" && "Commit your move."}
-            {phase === "reveal" && "Reveal your move."}
+            Browse and join games.
           </p>
           <div className="mb-8 p-4 bg-slate-100 dark:bg-slate-700 rounded-lg">
             <div className="mb-4">
@@ -92,7 +81,6 @@ export default function Clash() {
                   value={selectedAccount}
                   onChange={(e) => {
                     setSelectedAccount(e.target.value);
-                    setAccount(e.target.value);
                   }}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
@@ -117,100 +105,29 @@ export default function Clash() {
               {config?.GAME_CONTRACT_ADDRESS}
             </p>
           </div>
-          <div className="flex justify-center mb-6 space-x-4">
-            <button
-              onClick={() => setPhase("games")}
-              className={`px-4 py-2 rounded ${
-                phase === "games"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-              }`}
-            >
-              Games
-            </button>
-            <button
-              onClick={() => setPhase("commit")}
-              className={`px-4 py-2 rounded ${
-                phase === "commit"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-              }`}
-            >
-              Commit
-            </button>
-            <button
-              onClick={() => setPhase("reveal")}
-              className={`px-4 py-2 rounded ${
-                phase === "reveal"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-              }`}
-            >
-              Reveal
-            </button>
-          </div>
           <div className="space-y-6">
-            {phase === "games" && (
-              <GameList
-                account={selectedAccount}
-                contract={contract}
-                config={config}
-                web3={web3}
-                setStatus={setStatus}
-                onPlayClick={handlePlayClick}
-              />
-            )}
-            {phase === "commit" && (
-              <Commit
-                account={selectedAccount}
-                contract={contract}
-                config={config}
-                web3={web3}
-                setStatus={setStatus}
-                selectedMove={selectedMove}
-                setSelectedMove={setSelectedMove}
-                secret={secret}
-                setSecret={setSecret}
-                onBothPlayersCommitted={() => setPhase("reveal")}
-              />
-            )}
-            {phase === "reveal" && (
-              <Reveal
-                account={selectedAccount}
-                contract={contract}
-                config={config}
-                web3={web3}
-                setStatus={setStatus}
-                selectedMove={selectedMove}
-                secret={secret}
-              />
-            )}
-          </div>
-          {status && (
-            <div
-              className={`mt-6 p-4 rounded-lg ${
-                status.includes("✅") || status.includes("tx sent")
-                  ? "bg-green-50 dark:bg-green-900 text-green-800 dark:text-green-200"
-                  : "bg-red-50 dark:bg-red-900 text-red-800 dark:text-red-200"
-              }`}
-            >
-              <p className="text-sm break-words">{status}</p>
-            </div>
-          )}
-          <div className="mt-8 p-4 bg-yellow-50 dark:bg-yellow-900 rounded-lg text-sm text-yellow-800 dark:text-yellow-200">
-            <p className="font-semibold mb-2">ℹ️ Note:</p>
-            <ul className="list-disc list-inside space-y-1">
-              <li>
-                MetaMask or a compatible Web3 wallet is required for write
-                operations
-              </li>
-              <li>
-                Use bytes32 for encrypted move (see contract docs for details)
-              </li>
-              <li>ETH values are in Ether (not Wei)</li>
-            </ul>
+            <GameList
+              account={selectedAccount}
+              contract={contract}
+              config={config}
+              web3={web3}
+              setStatus={setStatus}
+              onPlayClick={handlePlayClick}
+            />
           </div>
         </div>
+
+        {/* Game Modal */}
+        <GameModal
+          gameId={selectedGameId}
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          account={selectedAccount}
+          contract={contract}
+          config={config}
+          web3={web3}
+          setStatus={setStatus}
+        />
       </main>
     </div>
   );

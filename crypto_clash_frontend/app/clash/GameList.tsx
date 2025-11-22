@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import Web3 from "web3";
 import { Button } from "./Button";
 import { Input } from "./Input";
+import { GameDetails } from "./GameModal";
+import { showSuccessToast, showErrorToast } from "@/app/lib/toast";
 
 interface GameListProps {
   account: string;
@@ -12,15 +14,6 @@ interface GameListProps {
   onPlayClick?: (gameId: number) => void;
 }
 
-interface GameInfo {
-  gameId: number;
-  playerA: string;
-  playerB: string;
-  initialBet: string;
-  isActive: boolean;
-  outcome: number;
-}
-
 export default function GameList({
   account,
   contract,
@@ -29,7 +22,7 @@ export default function GameList({
   setStatus,
   onPlayClick,
 }: Readonly<GameListProps>) {
-  const [games, setGames] = useState<GameInfo[]>([]);
+  const [games, setGames] = useState<GameDetails[]>([]);
   const [loading, setLoading] = useState(false);
   const [newGameBet, setNewGameBet] = useState<string>("0.01");
   const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null);
@@ -40,18 +33,11 @@ export default function GameList({
     if (!contract || !web3) return;
     try {
       const activeGameIds = await contract.methods.getActiveGameIds().call();
-      const gameDetails: GameInfo[] = [];
+      const gameDetails: GameDetails[] = [];
 
       for (const gameId of activeGameIds) {
         const details = await contract.methods.getGameDetails(gameId).call();
-        gameDetails.push({
-          gameId: Number(gameId),
-          playerA: details.playerAAddr,
-          playerB: details.playerBAddr,
-          initialBet: web3.utils.fromWei(details.initialBet, "ether"),
-          isActive: details.isActive,
-          outcome: Number(details.outcome),
-        });
+        gameDetails.push(details);
       }
 
       setGames(gameDetails);
@@ -60,10 +46,10 @@ export default function GameList({
         const userGames = new Set<number>();
         for (const game of gameDetails) {
           if (
-            game.playerA.toLowerCase() === account.toLowerCase() ||
-            game.playerB.toLowerCase() === account.toLowerCase()
+            game.playerA.addr.toLowerCase() === account.toLowerCase() ||
+            game.playerB.addr.toLowerCase() === account.toLowerCase()
           ) {
-            userGames.add(game.gameId);
+            userGames.add(game.returnGameId);
           }
         }
         setUserGameIds(userGames);
@@ -90,9 +76,8 @@ export default function GameList({
   const handleJoinGame = async (gameId: number, bet: string) => {
     if (!contract || !web3 || !account) return;
     setLoading(true);
-    setStatus("");
     try {
-      const betWei = web3.utils.toWei(bet || "0.01", "ether");
+      const betWei = bet;
       const tx = contract.methods.register(gameId);
       const gas = await tx.estimateGas({ from: account, value: betWei });
       const result = await (globalThis as any).ethereum.request({
@@ -108,11 +93,11 @@ export default function GameList({
           },
         ],
       });
-      setStatus("✅ Joined game! Transaction: " + result);
+      showSuccessToast("Joined game! Transaction: " + result);
       await new Promise((resolve) => setTimeout(resolve, 2000));
       fetchActiveGames();
     } catch (err: any) {
-      setStatus("❌ Failed to join game: " + err.message);
+      showErrorToast("Failed to join game: " + err.message);
       console.error(err);
     } finally {
       setLoading(false);
@@ -123,7 +108,6 @@ export default function GameList({
   const handleCreateGame = async () => {
     if (!contract || !web3 || !account) return;
     setLoading(true);
-    setStatus("");
     try {
       const betWei = web3.utils.toWei(newGameBet || "0.01", "ether");
       const tx = contract.methods.register(0); // 0 means create new game
@@ -141,12 +125,12 @@ export default function GameList({
           },
         ],
       });
-      setStatus("✅ Created new game! Transaction: " + result);
+      showSuccessToast("Created new game! Transaction: " + result);
       setNewGameBet("0.01");
       await new Promise((resolve) => setTimeout(resolve, 2000));
       fetchActiveGames();
     } catch (err: any) {
-      setStatus("❌ Failed to create game: " + err.message);
+      showErrorToast("Failed to create game: " + err.message);
       console.error(err);
     } finally {
       setLoading(false);
@@ -156,6 +140,21 @@ export default function GameList({
   const formatAddress = (addr: string) => {
     if (!addr || addr === "0x0000000000000000000000000000000000000000") return "-";
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  };
+
+  const getGamePhase = (game: GameDetails) => {
+    const playerARevealed = Number(game.playerA.move) !== 0;
+    const playerBRevealed = Number(game.playerB.move) !== 0;
+    const playerACommitted = Number(game.playerA.encrMove) !== 0;
+    const playerBCommitted = Number(game.playerB.encrMove) !== 0;
+
+    if (playerARevealed && playerBRevealed) {
+      return { phase: "Outcome", color: "bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200" };
+    } else if (playerACommitted && playerBCommitted) {
+      return { phase: "Reveal", color: "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200" };
+    } else {
+      return { phase: "Commit", color: "bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200" };
+    }
   };
 
   return (
@@ -185,8 +184,7 @@ export default function GameList({
           </Button>
         </div>
         <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">
-          Enter the bet amount in ETH (e.g., 0.01 for 0.01 ETH). The first
-          player to join with the same or higher bet will play against you.
+          Enter the bet amount in ETH (e.g., 0.01 for 0.01 ETH).
         </p>
       </div>
 
@@ -203,90 +201,102 @@ export default function GameList({
           </div>
         ) : (
           <div className="space-y-2">
-            {games.map((game) => (
+            {games.map((game) => {
+              const isUserInGame = userGameIds.has(game.returnGameId);
+              return (
               <div
-                key={game.gameId}
-                className="flex items-center gap-4 bg-white dark:bg-slate-700 p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow border border-gray-200 dark:border-slate-600"
+                key={game.returnGameId}
+                className={`flex flex-col p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow border ${
+                  isUserInGame
+                    ? "bg-green-50 dark:bg-green-900/30 border-green-300 dark:border-green-600 ring-2 ring-green-400 dark:ring-green-500"
+                    : "bg-white dark:bg-slate-700 border-gray-200 dark:border-slate-600"
+                }`}
               >
-                {/* Game ID */}
-                <div className="min-w-[80px]">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Game ID
-                  </p>
+                {/* Game ID Header */}
+                <div className="mb-4 flex items-center justify-between">
                   <p className="font-semibold text-lg text-indigo-600 dark:text-indigo-400">
-                    #{game.gameId}
+                    Game #{game.returnGameId}
                   </p>
-                </div>
-
-                {/* Players Info */}
-                <div className="flex-1 min-w-[200px]">
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
-                    Players
-                  </p>
-                  <div className="space-y-1">
-                    <p className="font-mono text-sm text-slate-700 dark:text-slate-300">
-                      <span className="text-xs text-slate-500">A:</span> {formatAddress(game.playerA)}
-                    </p>
-                    <p className="font-mono text-sm text-slate-700 dark:text-slate-300">
-                      <span className="text-xs text-slate-500">B:</span> {game.playerB === "0x0000000000000000000000000000000000000000"
-                        ? "Waiting..."
-                        : formatAddress(game.playerB)}
+                  <div className="flex gap-3 items-center">
+                    <span className={`text-xs font-semibold px-2 py-1 rounded ${getGamePhase(game).color}`}>
+                      {getGamePhase(game).phase}
+                    </span>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                      {web3 ? web3.utils.fromWei(game.initialBet, "ether") : "-"} ETH
                     </p>
                   </div>
                 </div>
 
-                {/* Bet Amount */}
-                <div className="min-w-[100px]">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Bet
-                  </p>
-                  <p className="font-semibold text-slate-900 dark:text-white">
-                    {game.initialBet} ETH
-                  </p>
+                {/* Players VS Layout */}
+                <div className="flex items-center justify-between gap-4">
+                  {/* Player A */}
+                  <div className="flex-1 text-center">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 font-semibold">
+                      Player A
+                    </p>
+                    <p className="font-mono text-sm text-slate-700 dark:text-slate-300 break-all">
+                      {formatAddress(game.playerA.addr)}
+                    </p>
+                  </div>
+
+                  {/* VS */}
+                  <div className="flex flex-col items-center">
+                    <p className="text-xl font-bold text-slate-400 dark:text-slate-500">
+                      VS
+                    </p>
+                  </div>
+
+                  {/* Player B */}
+                  <div className="flex-1 text-center">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 font-semibold">
+                      Player B
+                    </p>
+                    <p className="font-mono text-sm text-slate-700 dark:text-slate-300 break-all">
+                      {game.playerB.addr === "0x0000000000000000000000000000000000000000"
+                        ? "⏳ Waiting..."
+                        : formatAddress(game.playerB.addr)}
+                    </p>
+                  </div>
                 </div>
 
                 {/* Join/Play Button */}
-                <div className="flex gap-2">
-                  {userGameIds.has(game.gameId) ? (
+                <div className="mt-4 flex justify-center">
+                  {userGameIds.has(game.returnGameId) ? (
                     <Button
-                      onClick={() => onPlayClick?.(game.gameId)}
+                      onClick={() => onPlayClick?.(game.returnGameId)}
                       variant="primary"
-                      className="whitespace-nowrap bg-emerald-600 hover:bg-emerald-500 focus-visible:outline-emerald-600"
+                      className="bg-emerald-600 hover:bg-emerald-500 focus-visible:outline-emerald-600"
                     >
                       ▶ Play
                     </Button>
                   ) : (
                     <Button
                       onClick={() =>
-                        handleJoinGame(game.gameId, game.initialBet)
+                        handleJoinGame(game.returnGameId, game.initialBet)
                       }
                       disabled={
                         loading ||
                         !account ||
                         !contract ||
-                        game.playerB !==
+                        game.playerB.addr !==
                           "0x0000000000000000000000000000000000000000"
                       }
                       variant="primary"
-                      className="whitespace-nowrap"
                     >
-                      {game.playerB ===
+                      {game.playerB.addr ===
                       "0x0000000000000000000000000000000000000000"
-                        ? "Join"
+                        ? "Join Game"
                         : "Full"}
                     </Button>
                   )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* Refresh Info */}
-      <div className="text-center text-xs text-slate-500 dark:text-slate-400">
-        <p>🔄 Games refresh automatically every 2 seconds</p>
-      </div>
     </div>
   );
 }
