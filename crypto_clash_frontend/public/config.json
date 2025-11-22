@@ -59,11 +59,24 @@
             "type": "function"
         }
     ],
-    "GAME_CONTRACT_ADDRESS": "0xAA7057A0203539d9BE86EfB471B831Dd833a9e22",
+    "GAME_CONTRACT_ADDRESS": "0x7C56Fd34374F0244402aDDf5E940490C1a53E92E",
     "GAME_ABI": [
         {
             "inputs": [],
             "name": "BET_MIN",
+            "outputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "",
+                    "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "COMMIT_TIMEOUT",
             "outputs": [
                 {
                     "internalType": "uint256",
@@ -82,6 +95,25 @@
                     "internalType": "uint256",
                     "name": "",
                     "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "gameId",
+                    "type": "uint256"
+                }
+            ],
+            "name": "commitTimeLeft",
+            "outputs": [
+                {
+                    "internalType": "int256",
+                    "name": "",
+                    "type": "int256"
                 }
             ],
             "stateMutability": "view",
@@ -276,6 +308,19 @@
                 }
             ],
             "stateMutability": "payable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "gameId",
+                    "type": "uint256"
+                }
+            ],
+            "name": "resolveTimeout",
+            "outputs": [],
+            "stateMutability": "nonpayable",
             "type": "function"
         },
         {

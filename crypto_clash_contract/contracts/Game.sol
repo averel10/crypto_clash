@@ -4,7 +4,8 @@ pragma solidity >=0.7.3;
 
 contract Game {
     uint public constant BET_MIN = 1e16; // The minimum bet (1 BLD)
-    uint public constant REVEAL_TIMEOUT = 10 minutes; // Max delay of revelation phase
+    uint public constant REVEAL_TIMEOUT = 0.5 minutes; // Max delay of revelation phase
+    uint public constant COMMIT_TIMEOUT = 0.5 minutes; // Max delay of commit phase
 
     enum Moves {
         None,
@@ -17,7 +18,9 @@ contract Game {
         None,
         PlayerA,
         PlayerB,
-        Draw
+        Draw,
+        PlayerATimeout,
+        PlayerBTimeout
     } // Possible outcomes
 
     struct Player {
@@ -32,6 +35,7 @@ contract Game {
         Player playerA;
         Player playerB;
         Outcomes outcome;
+        uint firstCommit;
         uint firstReveal;
         uint initialBet;
         uint gameId;
@@ -50,11 +54,11 @@ contract Game {
     // ------------------------- Registration ------------------------- //
 
     modifier validBet(uint gameId) {
-        require(msg.value >= BET_MIN, "Minimum bet not met");
+        require(msg.value == BET_MIN, "Minimum bet not met");
         require(
             games[gameId].initialBet == 0 ||
-                msg.value >= games[gameId].initialBet,
-            "Bet value too low"
+                msg.value == games[gameId].initialBet,
+            "Bet value must match initial bet"
         );
         _;
     }
@@ -125,8 +129,18 @@ contract Game {
     function play(uint gameId, bytes32 encrMove) public isRegistered(gameId) returns (bool) {
         GameState storage game = games[gameId];
 
+        // Check if game is still active (commit phase not timed out)
+        require(game.isActive, "Game is no longer active");
+        require(game.firstCommit == 0 || block.timestamp <= game.firstCommit + COMMIT_TIMEOUT, "Commit phase timeout expired");
+
         // Basic sanity checks with explicit errors to help debugging
         require(encrMove != bytes32(0), "Encrypted move cannot be zero");
+        
+        // Track first commit timestamp
+        if (game.firstCommit == 0) {
+            game.firstCommit = block.timestamp;
+        }
+        
         // Ensure the caller hasn't already committed a move
         if (msg.sender == game.playerA.addr) {
             require(
@@ -166,6 +180,10 @@ contract Game {
     ) public isRegistered(gameId) commitPhaseEnded(gameId) returns (Moves) {
         GameState storage game = games[gameId];
 
+        // Check if reveal phase timeout has expired
+        if( game.firstReveal != 0 ) {
+        require(block.timestamp <= game.firstReveal + REVEAL_TIMEOUT, "Reveal phase timeout expired");
+        }
         bytes32 encrMove = keccak256(abi.encodePacked(clearMove)); // Hash of clear input (= "move-password")
         Moves move = Moves(getFirstChar(clearMove)); // Actual move (Rock / Paper / Scissors)
 
@@ -286,6 +304,17 @@ contract Game {
         }
     }
 
+    // Pay to one player and slash the other (timeout resolution).
+    function payWithSlash(
+        address payable winner,
+        address payable loser,
+        uint betAmount
+    ) private {
+        // Winner gets both bets
+        winner.transfer(betAmount * 2);
+        // Loser gets nothing (slashed)
+    }
+
     // Reset a specific game.
     function resetGame(uint gameId) private {
         GameState storage game = games[gameId];
@@ -326,9 +355,84 @@ contract Game {
 
         GameState storage game = games[gameId];
         if (game.firstReveal != 0) {
-            return int((game.firstReveal + REVEAL_TIMEOUT) - block.timestamp);
+            uint deadline = game.firstReveal + REVEAL_TIMEOUT;
+            if (block.timestamp >= deadline) {
+                return 0;
+            }
+            return int(deadline - block.timestamp);
         }
         return int(REVEAL_TIMEOUT);
+    }
+
+    // Return time left before the end of the commit phase.
+    function commitTimeLeft(uint gameId) public view returns (int) {
+        if (gameId == 0) return int(COMMIT_TIMEOUT);
+
+        GameState storage game = games[gameId];
+        if (game.firstCommit != 0) {
+            uint deadline = game.firstCommit + COMMIT_TIMEOUT;
+            if (block.timestamp >= deadline) {
+                return 0;
+            }
+            return int(deadline - block.timestamp);
+        }
+        return int(COMMIT_TIMEOUT);
+    }
+
+    // Resolve a game that has timed out. Caller must be the non-offending player.
+    // The offending player is slashed (loses their bet), winner gets both bets.
+    function resolveTimeout(uint gameId) public isRegistered(gameId) {
+        GameState storage game = games[gameId];
+        require(game.isActive, "Game is not active");
+        
+        address caller = msg.sender;
+        address payable offender;
+        address payable winner = payable(caller);
+        
+        bool commitPhaseTimedOut = game.firstCommit != 0 && 
+                                   block.timestamp > game.firstCommit + COMMIT_TIMEOUT && (game.playerA.encrMove == bytes32(0) || game.playerB.encrMove == bytes32(0));
+        bool revealPhaseTimedOut = game.firstReveal != 0 && 
+                                   block.timestamp > game.firstReveal + REVEAL_TIMEOUT;
+        
+        if (commitPhaseTimedOut) {
+            // Commit phase timeout: player who didn't commit first is offender
+            require(
+                (caller == game.playerA.addr && game.playerB.encrMove == bytes32(0)) ||
+                (caller == game.playerB.addr && game.playerA.encrMove == bytes32(0)),
+                "Caller must be the non-offending player"
+            );
+            
+            if (caller == game.playerA.addr) {
+                offender = game.playerB.addr;
+                game.outcome = Outcomes.PlayerBTimeout;
+            } else {
+                offender = game.playerA.addr;
+                game.outcome = Outcomes.PlayerATimeout;
+            }
+        } else if (revealPhaseTimedOut) {
+            // Reveal phase timeout: player who didn't reveal is offender
+            require(
+                (caller == game.playerA.addr && game.playerB.move == Moves.None) ||
+                (caller == game.playerB.addr && game.playerA.move == Moves.None),
+                "Caller must be the non-offending player"
+            );
+            
+            if (caller == game.playerA.addr) {
+                offender = game.playerB.addr;
+                game.outcome = Outcomes.PlayerBTimeout;
+            } else {
+                offender = game.playerA.addr;
+                game.outcome = Outcomes.PlayerATimeout;
+            }
+        } else {
+            revert("No timeout has occurred");
+        }
+        
+        // Reset game
+        resetGame(gameId);
+        
+        // Pay winner and slash offender
+        payWithSlash(winner, offender, game.initialBet);
     }
 
     // ------------------------- Game Management ------------------------- //
