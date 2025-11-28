@@ -54,10 +54,10 @@ contract Game {
     // ------------------------- Registration ------------------------- //
 
     modifier validBet(uint gameId) {
-        require(msg.value == BET_MIN, "Minimum bet not met");
+        require(msg.value >= BET_MIN, "Minimum bet not met");
         require(
             games[gameId].initialBet == 0 ||
-                msg.value == games[gameId].initialBet,
+                msg.value >= games[gameId].initialBet,
             "Bet value must match initial bet"
         );
         _;
