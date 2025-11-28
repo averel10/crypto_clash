@@ -59,7 +59,7 @@
             "type": "function"
         }
     ],
-    "GAME_CONTRACT_ADDRESS": "0x5B4D862ef9ce14CFD969F18194479F892db2FbF9",
+    "GAME_CONTRACT_ADDRESS": "0x01CFfE1cE3a6FDA1E2C01Ee611957fbbFE544Ce6",
     "GAME_ABI": [
         {
             "inputs": [],
@@ -292,6 +292,11 @@
                     "internalType": "uint256",
                     "name": "gameId",
                     "type": "uint256"
+                },
+                {
+                    "internalType": "string",
+                    "name": "nickname",
+                    "type": "string"
                 }
             ],
             "name": "register",
