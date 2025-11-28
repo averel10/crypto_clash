@@ -21,6 +21,7 @@ export type GameDetails = {
     outcome: number;
     isActive: boolean;
     returnGameId: number;
+    gameMode?: string; // "classic" or "minusone"
 };
 
 interface GameModalProps {

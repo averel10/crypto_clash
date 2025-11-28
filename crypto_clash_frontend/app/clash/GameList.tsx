@@ -26,6 +26,7 @@ export default function GameList({
   const [loading, setLoading] = useState(false);
   const [newGameBet, setNewGameBet] = useState<string>("0.01");
   const [newGameNickname, setNewGameNickname] = useState<string>("");
+  const [gameMode, setGameMode] = useState<string>("classic"); // "classic" or "minusone"
   const [joinNicknames, setJoinNicknames] = useState<Map<number, string>>(new Map());
   const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null);
   const [userGameIds, setUserGameIds] = useState<Set<number>>(new Set());
@@ -39,7 +40,16 @@ export default function GameList({
 
       for (const gameId of activeGameIds) {
         const details = await contract.methods.getGameDetails(gameId).call();
-        gameDetails.push(details);
+        // Map contract response to GameDetails type
+        gameDetails.push({
+          playerA: details[0],
+          playerB: details[1],
+          initialBet: details[2],
+          outcome: Number(details[3]),
+          isActive: details[4],
+          returnGameId: Number(details[5]),
+          gameMode: details[6] || "classic", // Fallback to "classic" for older contracts
+        });
       }
 
       setGames(gameDetails);
@@ -210,6 +220,14 @@ export default function GameList({
             onChange={(e) => setNewGameBet(e.target.value)}
             className="flex-1 min-w-[200px]"
           />
+          <select
+            value={gameMode}
+            onChange={(e) => setGameMode(e.target.value)}
+            className="flex-1 min-w-[200px] px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="classic">Classic Mode</option>
+            <option value="minusone">Minus One Mode (Squid Game)</option>
+          </select>
           <Button
             onClick={handleCreateGame}
             disabled={loading || !account || !contract}
@@ -220,7 +238,7 @@ export default function GameList({
           </Button>
         </div>
         <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">
-          Enter your nickname and bet amount in ETH (e.g., 0.01 for 0.01 ETH).
+          Enter your nickname, bet amount, and choose game mode. Classic for standard Rock-Paper-Scissors, or Minus One for the Squid Game variant (2 moves, withdraw 1).
         </p>
       </div>
 
@@ -250,9 +268,14 @@ export default function GameList({
               >
                 {/* Game ID Header */}
                 <div className="mb-4 flex items-center justify-between">
-                  <p className="font-semibold text-lg text-indigo-600 dark:text-indigo-400">
-                    Game #{game.returnGameId}
-                  </p>
+                  <div className="flex items-center gap-3">
+                    <p className="font-semibold text-lg text-indigo-600 dark:text-indigo-400">
+                      Game #{game.returnGameId}
+                    </p>
+                    <span className="text-xs font-semibold px-2 py-1 rounded bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200">
+                      {game.gameMode === "minusone" ? "Minus One" : "Classic"}
+                    </span>
+                  </div>
                   <div className="flex gap-3 items-center">
                     <span className={`text-xs font-semibold px-2 py-1 rounded ${getGamePhase(game).color}`}>
                       {getGamePhase(game).phase}

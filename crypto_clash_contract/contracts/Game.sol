@@ -40,6 +40,7 @@ contract Game {
         uint initialBet;
         uint gameId;
         bool isActive;
+        string gameMode; // "classic" for this contract
     }
 
     // Mapping from game ID to game state
@@ -112,6 +113,7 @@ contract Game {
 
         games[gameId].gameId = gameId;
         games[gameId].isActive = true;
+        games[gameId].gameMode = "classic";
         gameIds.push(gameId);
 
         return gameId;
@@ -454,7 +456,8 @@ contract Game {
             uint initialBet,
             Outcomes outcome,
             bool isActive,
-            uint returnGameId
+            uint returnGameId,
+            string memory gameMode
         )
     {
         GameState storage game = games[gameId];
@@ -465,7 +468,8 @@ contract Game {
             game.initialBet,
             game.outcome,
             game.isActive,
-            game.gameId
+            game.gameId,
+            game.gameMode
         );
     }
 
