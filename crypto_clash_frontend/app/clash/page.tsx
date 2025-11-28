@@ -17,6 +17,7 @@ export default function Clash() {
   const [selectedGameId, setSelectedGameId] = useState<number | undefined>();
   const [availableAccounts, setAvailableAccounts] = useState<string[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<string>("");
+  const [balance, setBalance] = useState<string>("0");
 
   const handlePlayClick = (gameId: number) => {
     setSelectedGameId(gameId);
@@ -55,6 +56,22 @@ export default function Clash() {
     };
     loadConfig();
   }, []);
+
+  // Fetch balance when selected account changes
+  useEffect(() => {
+    const fetchBalance = async () => {
+      if (web3 && selectedAccount) {
+        try {
+          const balanceWei = await web3.eth.getBalance(selectedAccount);
+          const balanceEth = web3.utils.fromWei(balanceWei, "ether");
+          setBalance(parseFloat(balanceEth).toFixed(4));
+        } catch (err: any) {
+          showErrorToast("Failed to fetch balance: " + err.message);
+        }
+      }
+    };
+    fetchBalance();
+  }, [web3, selectedAccount]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 font-sans">
@@ -99,6 +116,10 @@ export default function Clash() {
               {selectedAccount
                 ? `${selectedAccount.slice(0, 6)}...${selectedAccount.slice(-4)}`
                 : "Not connected"}
+            </p>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mt-2">
+              <span className="font-semibold">Current Balance:</span>{" "}
+              {balance} ETH
             </p>
             <p className="text-sm text-slate-600 dark:text-slate-300 mt-2">
               <span className="font-semibold">Game Contract Address:</span>{" "}
