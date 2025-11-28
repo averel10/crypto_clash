@@ -25,6 +25,8 @@ export default function GameList({
   const [games, setGames] = useState<GameDetails[]>([]);
   const [loading, setLoading] = useState(false);
   const [newGameBet, setNewGameBet] = useState<string>("0.01");
+  const [newGameNickname, setNewGameNickname] = useState<string>("");
+  const [joinNicknames, setJoinNicknames] = useState<Map<number, string>>(new Map());
   const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null);
   const [userGameIds, setUserGameIds] = useState<Set<number>>(new Set());
 
@@ -75,10 +77,21 @@ export default function GameList({
   // Join an existing game
   const handleJoinGame = async (gameId: number, bet: string) => {
     if (!contract || !web3 || !account) return;
+    
+    const nickname = joinNicknames.get(gameId) || "";
+    if (!nickname.trim()) {
+      showErrorToast("Please enter a nickname");
+      return;
+    }
+    if (nickname.length > 20) {
+      showErrorToast("Nickname too long (max 20 characters)");
+      return;
+    }
+    
     setLoading(true);
     try {
       const betWei = bet;
-      const tx = contract.methods.register(gameId);
+      const tx = contract.methods.register(gameId, nickname);
       const gas = await tx.estimateGas({ from: account, value: betWei });
       const result = await (globalThis as any).ethereum.request({
         method: "eth_sendTransaction",
@@ -94,6 +107,10 @@ export default function GameList({
         ],
       });
       showSuccessToast("Joined game! Transaction: " + result);
+      // Clear the nickname input for this game
+      const updatedNicknames = new Map(joinNicknames);
+      updatedNicknames.delete(gameId);
+      setJoinNicknames(updatedNicknames);
       await new Promise((resolve) => setTimeout(resolve, 2000));
       fetchActiveGames();
     } catch (err: any) {
@@ -107,10 +124,20 @@ export default function GameList({
   // Create a new game
   const handleCreateGame = async () => {
     if (!contract || !web3 || !account) return;
+    
+    if (!newGameNickname.trim()) {
+      showErrorToast("Please enter a nickname");
+      return;
+    }
+    if (newGameNickname.length > 20) {
+      showErrorToast("Nickname too long (max 20 characters)");
+      return;
+    }
+    
     setLoading(true);
     try {
       const betWei = web3.utils.toWei(newGameBet || "0.01", "ether");
-      const tx = contract.methods.register(0); // 0 means create new game
+      const tx = contract.methods.register(0, newGameNickname); // 0 means create new game
       const gas = await tx.estimateGas({ from: account, value: betWei });
       const result = await (globalThis as any).ethereum.request({
         method: "eth_sendTransaction",
@@ -127,6 +154,7 @@ export default function GameList({
       });
       showSuccessToast("Created new game! Transaction: " + result);
       setNewGameBet("0.01");
+      setNewGameNickname("");
       await new Promise((resolve) => setTimeout(resolve, 2000));
       fetchActiveGames();
     } catch (err: any) {
@@ -166,6 +194,14 @@ export default function GameList({
         </h3>
         <div className="flex gap-3 flex-wrap">
           <Input
+            type="text"
+            placeholder="Your nickname (max 20 chars)"
+            value={newGameNickname}
+            onChange={(e) => setNewGameNickname(e.target.value)}
+            maxLength={20}
+            className="flex-1 min-w-[200px]"
+          />
+          <Input
             type="number"
             min="0.01"
             step="0.01"
@@ -184,7 +220,7 @@ export default function GameList({
           </Button>
         </div>
         <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">
-          Enter the bet amount in ETH (e.g., 0.01 for 0.01 ETH).
+          Enter your nickname and bet amount in ETH (e.g., 0.01 for 0.01 ETH).
         </p>
       </div>
 
@@ -234,7 +270,10 @@ export default function GameList({
                     <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 font-semibold">
                       Player A
                     </p>
-                    <p className="font-mono text-sm text-slate-700 dark:text-slate-300 break-all">
+                    <p className="font-semibold text-base text-slate-800 dark:text-slate-200">
+                      {game.playerA.nickname || "Unknown"}
+                    </p>
+                    <p className="font-mono text-xs text-slate-500 dark:text-slate-400 break-all">
                       {formatAddress(game.playerA.addr)}
                     </p>
                   </div>
@@ -251,16 +290,25 @@ export default function GameList({
                     <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 font-semibold">
                       Player B
                     </p>
-                    <p className="font-mono text-sm text-slate-700 dark:text-slate-300 break-all">
-                      {game.playerB.addr === "0x0000000000000000000000000000000000000000"
-                        ? "⏳ Waiting..."
-                        : formatAddress(game.playerB.addr)}
-                    </p>
+                    {game.playerB.addr === "0x0000000000000000000000000000000000000000" ? (
+                      <p className="font-semibold text-base text-slate-500 dark:text-slate-400">
+                        ⏳ Waiting...
+                      </p>
+                    ) : (
+                      <>
+                        <p className="font-semibold text-base text-slate-800 dark:text-slate-200">
+                          {game.playerB.nickname || "Unknown"}
+                        </p>
+                        <p className="font-mono text-xs text-slate-500 dark:text-slate-400 break-all">
+                          {formatAddress(game.playerB.addr)}
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 {/* Join/Play Button */}
-                <div className="mt-4 flex justify-center">
+                <div className="mt-4 flex flex-col items-center gap-2">
                   {userGameIds.has(game.returnGameId) ? (
                     <Button
                       onClick={() => onPlayClick?.(game.returnGameId)}
@@ -269,24 +317,40 @@ export default function GameList({
                     >
                       ▶ Play
                     </Button>
+                  ) : game.playerB.addr === "0x0000000000000000000000000000000000000000" ? (
+                    <div className="flex gap-2 w-full max-w-md">
+                      <Input
+                        type="text"
+                        placeholder="Your nickname"
+                        value={joinNicknames.get(game.returnGameId) || ""}
+                        onChange={(e) => {
+                          const updatedNicknames = new Map(joinNicknames);
+                          updatedNicknames.set(game.returnGameId, e.target.value);
+                          setJoinNicknames(updatedNicknames);
+                        }}
+                        maxLength={20}
+                        className="flex-1"
+                      />
+                      <Button
+                        onClick={() =>
+                          handleJoinGame(game.returnGameId, game.initialBet)
+                        }
+                        disabled={
+                          loading ||
+                          !account ||
+                          !contract
+                        }
+                        variant="primary"
+                      >
+                        Join Game
+                      </Button>
+                    </div>
                   ) : (
                     <Button
-                      onClick={() =>
-                        handleJoinGame(game.returnGameId, game.initialBet)
-                      }
-                      disabled={
-                        loading ||
-                        !account ||
-                        !contract ||
-                        game.playerB.addr !==
-                          "0x0000000000000000000000000000000000000000"
-                      }
+                      disabled={true}
                       variant="primary"
                     >
-                      {game.playerB.addr ===
-                      "0x0000000000000000000000000000000000000000"
-                        ? "Join Game"
-                        : "Full"}
+                      Full
                     </Button>
                   )}
                 </div>

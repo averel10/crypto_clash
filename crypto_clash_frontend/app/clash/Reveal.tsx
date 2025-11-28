@@ -193,6 +193,26 @@ export default function Reveal({
 
   return (
     <div className="space-y-6">
+      {/* Player Info */}
+      {gameDetails && (
+        <div className="mb-6 p-4 bg-white dark:bg-slate-700 rounded-lg">
+          <div className="flex justify-between items-center">
+            <div className="text-center flex-1">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">You</p>
+              <p className="font-semibold text-slate-800 dark:text-slate-200">
+                {whoAmI === "player1" ? gameDetails.playerA.nickname : gameDetails.playerB.nickname}
+              </p>
+            </div>
+            <div className="text-2xl text-slate-400">VS</div>
+            <div className="text-center flex-1">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Opponent</p>
+              <p className="font-semibold text-slate-800 dark:text-slate-200">
+                {whoAmI === "player1" ? gameDetails.playerB.nickname : gameDetails.playerA.nickname}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Show timeout result after game is inactive */}
       {isGameFinishedByTimeout && (
         <div className="flex flex-col items-center justify-center py-16">
