@@ -67,7 +67,8 @@ contract Game {
     // If gameId is 0, player will join or create the first available game.
     // Return player's ID and game ID upon successful registration.
     function register(
-        uint gameId
+        uint gameId,
+        string memory nickname
     )
         public
         payable
@@ -80,11 +81,14 @@ contract Game {
         }
 
         require(games[gameId].isActive, "Game is not active");
+        require(bytes(nickname).length > 0, "Nickname cannot be empty");
+        require(bytes(nickname).length <= 20, "Nickname too long (max 20 characters)");
 
         GameState storage game = games[gameId];
 
         if (game.playerA.addr == address(0x0)) {
             game.playerA.addr = payable(msg.sender);
+            game.playerA.nickname = nickname;
             game.initialBet = msg.value;
             return (1, gameId);
         } else if (game.playerB.addr == address(0x0)) {
@@ -93,6 +97,7 @@ contract Game {
                 "Cannot play against yourself"
             );
             game.playerB.addr = payable(msg.sender);
+            game.playerB.nickname = nickname;
             return (2, gameId);
         }
 
