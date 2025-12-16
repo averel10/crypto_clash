@@ -14,6 +14,12 @@ interface RevealProps {
   secret: string;
   gameDetails: GameDetails | null;
   whoAmI: "player1" | "player2" | "";
+  // MinusOne mode props
+  selectedMove1?: string | null;
+  selectedMove2?: string | null;
+  secret1?: string;
+  secret2?: string;
+  isWithdrawPhase?: boolean;
 }
 
 type MoveName = "Rock" | "Paper" | "Scissors";
@@ -42,6 +48,11 @@ export default function Reveal({
   secret,
   gameDetails,
   whoAmI,
+  selectedMove1,
+  selectedMove2,
+  secret1,
+  secret2,
+  isWithdrawPhase = false,
 }: Readonly<RevealProps>) {
   const [loading, setLoading] = useState(false);
   const [selfRevealed, setSelfRevealed] = useState(false);
@@ -51,30 +62,76 @@ export default function Reveal({
   const [revealTimeLeft, setRevealTimeLeft] = useState<number>(0);
   const [timeoutExpired, setTimeoutExpired] = useState(false);
 
+  const isMinusOne = gameDetails?.gameMode === "minusone";
+  
+  // Generate clear text for reveal
   const clearMove = selectedMove && secret ? `${selectedMove}-${secret}` : "";
+  const clearMove1 = selectedMove1 && secret1 ? `${selectedMove1}-${secret1}` : "";
+  const clearMove2 = selectedMove2 && secret2 ? `${selectedMove2}-${secret2}` : "";
 
   // Check game status on mount
   useEffect(() => {
     const setStateFromGameDetails = () => {
       if (!gameDetails) return;
-      const playerARevealed = Number(gameDetails.playerA.move) !== 0;
-      const playerBRevealed = Number(gameDetails.playerB.move) !== 0;
+      
+      if (isMinusOne && !isWithdrawPhase) {
+        // MinusOne initial reveal: check move1
+        const playerARevealed = !!(gameDetails.playerA.move1 && Number(gameDetails.playerA.move1) !== 0);
+        const playerBRevealed = !!(gameDetails.playerB.move1 && Number(gameDetails.playerB.move1) !== 0);
 
-      setSelfRevealed(
-        (whoAmI === "player1" && playerARevealed) ||
-        (whoAmI === "player2" && playerBRevealed)
-      );
-      setOpponentRevealed(
-        (whoAmI === "player1" && playerBRevealed) ||
-        (whoAmI === "player2" && playerARevealed)
-      );
-      setBothRevealed(playerARevealed && playerBRevealed);
-      if(bothRevealed){
-        if(Number(gameDetails.outcome) === 1 && whoAmI === "player1") setOutcome(1);
-        else if(Number(gameDetails.outcome) === 2 && whoAmI === "player2") setOutcome(1);
-        else if(Number(gameDetails.outcome) === 1 && whoAmI === "player2") setOutcome(2);
-        else if(Number(gameDetails.outcome) === 2 && whoAmI === "player1") setOutcome(2);
-        else setOutcome(3);
+        setSelfRevealed(
+          (whoAmI === "player1" && playerARevealed) ||
+          (whoAmI === "player2" && playerBRevealed)
+        );
+        setOpponentRevealed(
+          (whoAmI === "player1" && playerBRevealed) ||
+          (whoAmI === "player2" && playerARevealed)
+        );
+        setBothRevealed(playerARevealed && playerBRevealed);
+      } else if (isMinusOne && isWithdrawPhase) {
+        // MinusOne withdrawal reveal: check withdrawn field
+        const playerARevealed = !!(gameDetails.playerA.withdrawn && Number(gameDetails.playerA.withdrawn) !== 0);
+        const playerBRevealed = !!(gameDetails.playerB.withdrawn && Number(gameDetails.playerB.withdrawn) !== 0);
+
+        setSelfRevealed(
+          (whoAmI === "player1" && playerARevealed) ||
+          (whoAmI === "player2" && playerBRevealed)
+        );
+        setOpponentRevealed(
+          (whoAmI === "player1" && playerBRevealed) ||
+          (whoAmI === "player2" && playerARevealed)
+        );
+        setBothRevealed(playerARevealed && playerBRevealed);
+        
+        // Set outcome when both revealed withdrawal
+        if(bothRevealed){
+          if(Number(gameDetails.outcome) === 1 && whoAmI === "player1") setOutcome(1);
+          else if(Number(gameDetails.outcome) === 2 && whoAmI === "player2") setOutcome(1);
+          else if(Number(gameDetails.outcome) === 1 && whoAmI === "player2") setOutcome(2);
+          else if(Number(gameDetails.outcome) === 2 && whoAmI === "player1") setOutcome(2);
+          else if(Number(gameDetails.outcome) === 3) setOutcome(3);
+        }
+      } else {
+        // Classic mode: check move field
+        const playerARevealed = !!(gameDetails.playerA.move && Number(gameDetails.playerA.move) !== 0);
+        const playerBRevealed = !!(gameDetails.playerB.move && Number(gameDetails.playerB.move) !== 0);
+
+        setSelfRevealed(
+          (whoAmI === "player1" && playerARevealed) ||
+          (whoAmI === "player2" && playerBRevealed)
+        );
+        setOpponentRevealed(
+          (whoAmI === "player1" && playerBRevealed) ||
+          (whoAmI === "player2" && playerARevealed)
+        );
+        setBothRevealed(playerARevealed && playerBRevealed);
+        if(bothRevealed){
+          if(Number(gameDetails.outcome) === 1 && whoAmI === "player1") setOutcome(1);
+          else if(Number(gameDetails.outcome) === 2 && whoAmI === "player2") setOutcome(1);
+          else if(Number(gameDetails.outcome) === 1 && whoAmI === "player2") setOutcome(2);
+          else if(Number(gameDetails.outcome) === 2 && whoAmI === "player1") setOutcome(2);
+          else setOutcome(3);
+        }
       }
     };
 
@@ -84,7 +141,14 @@ export default function Reveal({
     const checkRevealTimeout = async () => {
       if (!contract || !gameDetails) return;
       try {
-        const timeLeft = await contract.methods.revealTimeLeft(gameDetails.returnGameId).call();
+        let timeLeft;
+        if (isMinusOne) {
+          // MinusOne uses getTimeLeft() for all phases
+          timeLeft = await contract.methods.getTimeLeft(gameDetails.returnGameId).call();
+        } else {
+          // Classic uses revealTimeLeft()
+          timeLeft = await contract.methods.revealTimeLeft(gameDetails.returnGameId).call();
+        }
         setRevealTimeLeft(Number(timeLeft));
         if (Number(timeLeft) <= 0) {
           setTimeoutExpired(true);
@@ -101,10 +165,38 @@ export default function Reveal({
   }, [gameDetails, contract, account, whoAmI]);
 
   const handleReveal = async () => {
-    if (!contract || !web3 || !account || !clearMove) return;
+    if (!contract || !web3 || !account) return;
+    
     setLoading(true);
     try {
-      const tx = contract.methods.reveal(gameDetails?.returnGameId, clearMove);
+      let tx;
+      
+      if (isMinusOne && !isWithdrawPhase) {
+        // MinusOne initial reveal: revealInitialMoves(gameId, clear1, clear2)
+        if (!clearMove1 || !clearMove2) {
+          showErrorToast("Please provide both cleartext moves");
+          setLoading(false);
+          return;
+        }
+        tx = contract.methods.revealInitialMoves(gameDetails?.returnGameId, clearMove1, clearMove2);
+      } else if (isMinusOne && isWithdrawPhase) {
+        // MinusOne withdrawal reveal: withdrawMove(gameId, clear)
+        if (!clearMove) {
+          showErrorToast("Please provide cleartext withdrawal choice");
+          setLoading(false);
+          return;
+        }
+        tx = contract.methods.withdrawMove(gameDetails?.returnGameId, clearMove);
+      } else {
+        // Classic mode: reveal(gameId, clear)
+        if (!clearMove) {
+          showErrorToast("Please provide cleartext move");
+          setLoading(false);
+          return;
+        }
+        tx = contract.methods.reveal(gameDetails?.returnGameId, clearMove);
+      }
+      
       const gas = await tx.estimateGas({ from: account });
       const result = await (globalThis as any).ethereum.request({
         method: "eth_sendTransaction",
@@ -244,29 +336,66 @@ export default function Reveal({
           {!bothRevealed && !timeoutExpired && (
             <div className="border p-6 rounded-lg bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-800">
               <h2 className="font-semibold text-lg mb-4 text-slate-900 dark:text-white">
-                Your Move
+                {isWithdrawPhase ? "Your Withdrawal Choice" : isMinusOne ? "Your Moves" : "Your Move"}
               </h2>
-              {selectedMove ? (
+              {isMinusOne && !isWithdrawPhase && selectedMove1 && selectedMove2 ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-center gap-4 p-3 bg-blue-50 dark:bg-blue-900 rounded-lg">
+                    <div className="flex flex-col items-center">
+                      <span className="text-xs text-slate-500 dark:text-slate-400 mb-1">Move 1</span>
+                      <span className="text-5xl mb-2">{MOVES[selectedMove1].icon}</span>
+                      <span className="font-semibold text-sm">{MOVES[selectedMove1].name}</span>
+                    </div>
+                    <div className="text-2xl text-slate-400">→</div>
+                    <div className="bg-white dark:bg-slate-600 p-3 rounded-lg flex-1">
+                      <p className="text-xs text-slate-600 dark:text-slate-300 mb-1">Clear Text 1:</p>
+                      <code className="text-xs font-mono text-slate-700 dark:text-slate-200 break-all">
+                        {clearMove1}
+                      </code>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center gap-4 p-3 bg-green-50 dark:bg-green-900 rounded-lg">
+                    <div className="flex flex-col items-center">
+                      <span className="text-xs text-slate-500 dark:text-slate-400 mb-1">Move 2</span>
+                      <span className="text-5xl mb-2">{MOVES[selectedMove2].icon}</span>
+                      <span className="font-semibold text-sm">{MOVES[selectedMove2].name}</span>
+                    </div>
+                    <div className="text-2xl text-slate-400">→</div>
+                    <div className="bg-white dark:bg-slate-600 p-3 rounded-lg flex-1">
+                      <p className="text-xs text-slate-600 dark:text-slate-300 mb-1">Clear Text 2:</p>
+                      <code className="text-xs font-mono text-slate-700 dark:text-slate-200 break-all">
+                        {clearMove2}
+                      </code>
+                    </div>
+                  </div>
+                </div>
+              ) : isWithdrawPhase && selectedMove ? (
                 <div className="flex items-center justify-center gap-4">
                   <div className="flex flex-col items-center">
-                    <span className="text-6xl mb-2">{MOVES[selectedMove].icon}</span>
-                    <span className="font-semibold text-lg">
-                      {MOVES[selectedMove].name}
-                    </span>
+                    <span className="text-6xl mb-2">{selectedMove === "1" ? "1️⃣" : "2️⃣"}</span>
+                    <span className="font-semibold text-lg">Withdraw Move {selectedMove}</span>
                   </div>
                   <div className="text-3xl text-slate-400">→</div>
                   <div className="bg-white dark:bg-slate-600 p-4 rounded-lg">
-                    <p className="text-xs text-slate-600 dark:text-slate-300 mb-1">
-                      Clear Move:
-                    </p>
-                    <code className="text-sm font-mono text-slate-700 dark:text-slate-200">
-                      {clearMove}
-                    </code>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mb-1">Clear Text:</p>
+                    <code className="text-sm font-mono text-slate-700 dark:text-slate-200">{clearMove}</code>
+                  </div>
+                </div>
+              ) : selectedMove ? (
+                <div className="flex items-center justify-center gap-4">
+                  <div className="flex flex-col items-center">
+                    <span className="text-6xl mb-2">{MOVES[selectedMove].icon}</span>
+                    <span className="font-semibold text-lg">{MOVES[selectedMove].name}</span>
+                  </div>
+                  <div className="text-3xl text-slate-400">→</div>
+                  <div className="bg-white dark:bg-slate-600 p-4 rounded-lg">
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mb-1">Clear Move:</p>
+                    <code className="text-sm font-mono text-slate-700 dark:text-slate-200">{clearMove}</code>
                   </div>
                 </div>
               ) : (
                 <p className="text-center text-slate-600 dark:text-slate-400">
-                  No move selected yet
+                  No {isWithdrawPhase ? "withdrawal choice" : "move"} selected yet
                 </p>
               )}
             </div>
@@ -349,19 +478,22 @@ export default function Reveal({
           {!bothRevealed && !timeoutExpired && (
             <div className="border-2 border-blue-300 dark:border-blue-600 p-6 rounded-lg bg-blue-50 dark:bg-slate-700">
               <h2 className="font-semibold text-lg mb-4 text-slate-900 dark:text-white">
-                Reveal Your Move
+                {isWithdrawPhase ? "Reveal Your Withdrawal" : isMinusOne ? "Reveal Your Moves" : "Reveal Your Move"}
               </h2>
               <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
-                Submit your clear move and secret to the blockchain. This proves you
-                didn't cheat!
+                {isWithdrawPhase 
+                  ? "Submit your clear withdrawal choice and secret to the blockchain."
+                  : isMinusOne
+                    ? "Submit your clear moves and secrets to the blockchain. This proves you didn't cheat!"
+                    : "Submit your clear move and secret to the blockchain. This proves you didn't cheat!"}
               </p>
               <Button
                 onClick={handleReveal}
-                disabled={loading || !account || !contract || !clearMove || selfRevealed}
+                disabled={loading || !account || !contract || (!clearMove && (!clearMove1 || !clearMove2)) || selfRevealed}
                 variant="primary"
                 className="w-full py-3 text-lg"
               >
-                {loading ? "Submitting..." : selfRevealed ? "✅ Revealed" : "Reveal Move"}
+                {loading ? "Submitting..." : selfRevealed ? "✅ Revealed" : isWithdrawPhase ? "Reveal Withdrawal" : "Reveal Move"}
               </Button>
             </div>
           )}
@@ -372,42 +504,133 @@ export default function Reveal({
               {/* Moves Comparison */}
               <div className="border-2 border-slate-300 dark:border-slate-600 p-6 rounded-lg bg-slate-50 dark:bg-slate-800">
                 <h2 className="font-semibold text-lg mb-4 text-slate-900 dark:text-white text-center">
-                  Final Moves
+                  {isMinusOne ? "Final Moves (After Withdrawal)" : "Final Moves"}
                 </h2>
-                <div className="flex items-center justify-center gap-8">
-                  {/* Your Move (always on left) */}
-                  <div className="flex flex-col items-center">
-                    <span className="text-6xl mb-2">
-                      {gameDetails && MOVES[String(whoAmI === "player1" ? gameDetails.playerA.move : gameDetails.playerB.move)]?.icon}
-                    </span>
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">
-                      You
-                    </span>
-                    <span className="text-sm text-slate-500 dark:text-slate-400">
-                      {gameDetails && MOVES[String(whoAmI === "player1" ? gameDetails.playerA.move : gameDetails.playerB.move)]?.name}
-                    </span>
-                  </div>
+                
+                {isMinusOne && gameDetails ? (
+                  <div className="space-y-6">
+                    {/* Show all moves including withdrawn ones for MinusOne */}
+                    <div className="flex items-center justify-center gap-8">
+                      {/* Your Moves */}
+                      <div className="flex flex-col items-center space-y-2">
+                        <span className="font-semibold text-slate-700 dark:text-slate-300 mb-2">You</span>
+                        <div className="flex gap-2">
+                          <div className={`flex flex-col items-center p-2 rounded ${
+                            (whoAmI === "player1" ? gameDetails.playerA.withdrawn : gameDetails.playerB.withdrawn) === 1 
+                              ? "opacity-40 bg-red-100 dark:bg-red-900" 
+                              : "bg-green-100 dark:bg-green-900"
+                          }`}>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">Move 1</span>
+                            <span className="text-3xl">
+                              {MOVES[String(whoAmI === "player1" ? gameDetails.playerA.move1 : gameDetails.playerB.move1)]?.icon}
+                            </span>
+                            <span className="text-xs">
+                              {MOVES[String(whoAmI === "player1" ? gameDetails.playerA.move1 : gameDetails.playerB.move1)]?.name}
+                            </span>
+                            {(whoAmI === "player1" ? gameDetails.playerA.withdrawn : gameDetails.playerB.withdrawn) === 1 && (
+                              <span className="text-xs text-red-600 dark:text-red-400">Withdrawn</span>
+                            )}
+                          </div>
+                          <div className={`flex flex-col items-center p-2 rounded ${
+                            (whoAmI === "player1" ? gameDetails.playerA.withdrawn : gameDetails.playerB.withdrawn) === 2 
+                              ? "opacity-40 bg-red-100 dark:bg-red-900" 
+                              : "bg-green-100 dark:bg-green-900"
+                          }`}>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">Move 2</span>
+                            <span className="text-3xl">
+                              {MOVES[String(whoAmI === "player1" ? gameDetails.playerA.move2 : gameDetails.playerB.move2)]?.icon}
+                            </span>
+                            <span className="text-xs">
+                              {MOVES[String(whoAmI === "player1" ? gameDetails.playerA.move2 : gameDetails.playerB.move2)]?.name}
+                            </span>
+                            {(whoAmI === "player1" ? gameDetails.playerA.withdrawn : gameDetails.playerB.withdrawn) === 2 && (
+                              <span className="text-xs text-red-600 dark:text-red-400">Withdrawn</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
 
-                  {/* VS */}
-                  <div className="flex flex-col items-center">
-                    <span className="text-4xl text-slate-400 dark:text-slate-500">
-                      VS
-                    </span>
-                  </div>
+                      {/* VS */}
+                      <div className="flex flex-col items-center">
+                        <span className="text-4xl text-slate-400 dark:text-slate-500">VS</span>
+                      </div>
 
-                  {/* Opponent Move (always on right) */}
-                  <div className="flex flex-col items-center">
-                    <span className="text-6xl mb-2">
-                      {gameDetails && MOVES[String(whoAmI === "player1" ? gameDetails.playerB.move : gameDetails.playerA.move)]?.icon}
-                    </span>
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">
-                      Opponent
-                    </span>
-                    <span className="text-sm text-slate-500 dark:text-slate-400">
-                      {gameDetails && MOVES[String(whoAmI === "player1" ? gameDetails.playerB.move : gameDetails.playerA.move)]?.name}
-                    </span>
+                      {/* Opponent Moves */}
+                      <div className="flex flex-col items-center space-y-2">
+                        <span className="font-semibold text-slate-700 dark:text-slate-300 mb-2">Opponent</span>
+                        <div className="flex gap-2">
+                          <div className={`flex flex-col items-center p-2 rounded ${
+                            (whoAmI === "player1" ? gameDetails.playerB.withdrawn : gameDetails.playerA.withdrawn) === 1 
+                              ? "opacity-40 bg-red-100 dark:bg-red-900" 
+                              : "bg-green-100 dark:bg-green-900"
+                          }`}>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">Move 1</span>
+                            <span className="text-3xl">
+                              {MOVES[String(whoAmI === "player1" ? gameDetails.playerB.move1 : gameDetails.playerA.move1)]?.icon}
+                            </span>
+                            <span className="text-xs">
+                              {MOVES[String(whoAmI === "player1" ? gameDetails.playerB.move1 : gameDetails.playerA.move1)]?.name}
+                            </span>
+                            {(whoAmI === "player1" ? gameDetails.playerB.withdrawn : gameDetails.playerA.withdrawn) === 1 && (
+                              <span className="text-xs text-red-600 dark:text-red-400">Withdrawn</span>
+                            )}
+                          </div>
+                          <div className={`flex flex-col items-center p-2 rounded ${
+                            (whoAmI === "player1" ? gameDetails.playerB.withdrawn : gameDetails.playerA.withdrawn) === 2 
+                              ? "opacity-40 bg-red-100 dark:bg-red-900" 
+                              : "bg-green-100 dark:bg-green-900"
+                          }`}>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">Move 2</span>
+                            <span className="text-3xl">
+                              {MOVES[String(whoAmI === "player1" ? gameDetails.playerB.move2 : gameDetails.playerA.move2)]?.icon}
+                            </span>
+                            <span className="text-xs">
+                              {MOVES[String(whoAmI === "player1" ? gameDetails.playerB.move2 : gameDetails.playerA.move2)]?.name}
+                            </span>
+                            {(whoAmI === "player1" ? gameDetails.playerB.withdrawn : gameDetails.playerA.withdrawn) === 2 && (
+                              <span className="text-xs text-red-600 dark:text-red-400">Withdrawn</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex items-center justify-center gap-8">
+                    {/* Classic game - Your Move (always on left) */}
+                    <div className="flex flex-col items-center">
+                      <span className="text-6xl mb-2">
+                        {gameDetails && MOVES[String(whoAmI === "player1" ? gameDetails.playerA.move : gameDetails.playerB.move)]?.icon}
+                      </span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">
+                        You
+                      </span>
+                      <span className="text-sm text-slate-500 dark:text-slate-400">
+                        {gameDetails && MOVES[String(whoAmI === "player1" ? gameDetails.playerA.move : gameDetails.playerB.move)]?.name}
+                      </span>
+                    </div>
+
+                    {/* VS */}
+                    <div className="flex flex-col items-center">
+                      <span className="text-4xl text-slate-400 dark:text-slate-500">
+                        VS
+                      </span>
+                    </div>
+
+                    {/* Classic game - Opponent Move (always on right) */}
+                    <div className="flex flex-col items-center">
+                      <span className="text-6xl mb-2">
+                        {gameDetails && MOVES[String(whoAmI === "player1" ? gameDetails.playerB.move : gameDetails.playerA.move)]?.icon}
+                      </span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">
+                        Opponent
+                      </span>
+                      <span className="text-sm text-slate-500 dark:text-slate-400">
+                        {gameDetails && MOVES[String(whoAmI === "player1" ? gameDetails.playerB.move : gameDetails.playerA.move)]?.name}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Outcome Section */}

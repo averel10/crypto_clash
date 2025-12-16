@@ -181,17 +181,44 @@ export default function GameList({
   };
 
   const getGamePhase = (game: GameDetails) => {
-    const playerARevealed = Number(game.playerA.move) !== 0;
-    const playerBRevealed = Number(game.playerB.move) !== 0;
-    const playerACommitted = Number(game.playerA.encrMove) !== 0;
-    const playerBCommitted = Number(game.playerB.encrMove) !== 0;
-
-    if (playerARevealed && playerBRevealed) {
-      return { phase: "Outcome", color: "bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200" };
-    } else if (playerACommitted && playerBCommitted) {
-      return { phase: "Reveal", color: "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200" };
+    const isMinusOne = game.gameMode === "minusone";
+    
+    if (isMinusOne) {
+      // MinusOne game phases
+      const playerARevealed1 = Number(game.playerA.move1) !== 0;
+      const playerBRevealed1 = Number(game.playerB.move1) !== 0;
+      const playerAWithdrawn = Number(game.playerA.withdrawn) !== 0;
+      const playerBWithdrawn = Number(game.playerB.withdrawn) !== 0;
+      const playerACommitted1 = Number(game.playerA.hash1) !== 0;
+      const playerBCommitted1 = Number(game.playerB.hash1) !== 0;
+      const playerACommittedW = Number(game.playerA.wHash) !== 0;
+      const playerBCommittedW = Number(game.playerB.wHash) !== 0;
+      
+      if (playerAWithdrawn && playerBWithdrawn) {
+        return { phase: "Done", color: "bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200" };
+      } else if (playerACommittedW && playerBCommittedW) {
+        return { phase: "Withdraw Reveal", color: "bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200" };
+      } else if (playerARevealed1 && playerBRevealed1) {
+        return { phase: "Withdraw Commit", color: "bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200" };
+      } else if (playerACommitted1 && playerBCommitted1) {
+        return { phase: "Initial Reveal", color: "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200" };
+      } else {
+        return { phase: "Initial Commit", color: "bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200" };
+      }
     } else {
-      return { phase: "Commit", color: "bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200" };
+      // Classic game phases
+      const playerARevealed = Number(game.playerA.move) !== 0;
+      const playerBRevealed = Number(game.playerB.move) !== 0;
+      const playerACommitted = Number(game.playerA.encrMove) !== 0;
+      const playerBCommitted = Number(game.playerB.encrMove) !== 0;
+
+      if (playerARevealed && playerBRevealed) {
+        return { phase: "Outcome", color: "bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200" };
+      } else if (playerACommitted && playerBCommitted) {
+        return { phase: "Reveal", color: "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200" };
+      } else {
+        return { phase: "Commit", color: "bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200" };
+      }
     }
   };
 

@@ -9,8 +9,16 @@ import { showErrorToast } from "@/app/lib/toast";
 export type Player = {
     addr: string;
     bet: string;
-    encrMove: string;
-    move: number;
+    // Classic mode fields
+    encrMove?: string;
+    move?: number;
+    // MinusOne mode fields
+    hash1?: string;
+    hash2?: string;
+    move1?: number;
+    move2?: number;
+    wHash?: string;
+    withdrawn?: number;
     nickname: string;
 };
 
@@ -22,6 +30,7 @@ export type GameDetails = {
     isActive: boolean;
     returnGameId: number;
     gameMode?: string; // "classic" or "minusone"
+    phase?: number; // GamePhase for minusone mode
 };
 
 interface GameModalProps {
@@ -45,20 +54,38 @@ export default function GameModal({
   web3,
   setStatus,
 }: Readonly<GameModalProps>) {
-  const [phase, setPhase] = useState<"commit" | "reveal">("commit");
+  const [phase, setPhase] = useState<"commit" | "reveal" | "withdrawCommit" | "withdrawReveal">("commit");
   const [whoAmI, setWhoAmI] = useState<"player1" | "player2" | "">("");
   const [gameDetails, setGameDetails] = useState<GameDetails | null>(null);
+  
+  // Classic mode state
   const [selectedMove, setSelectedMove] = useState<string | null>(null);
   const [secret, setSecret] = useState<string>("");
+  
+  // MinusOne mode state
+  const [selectedMove1, setSelectedMove1] = useState<string | null>(null);
+  const [selectedMove2, setSelectedMove2] = useState<string | null>(null);
+  const [secret1, setSecret1] = useState<string>("");
+  const [secret2, setSecret2] = useState<string>("");
+  const [withdrawChoice, setWithdrawChoice] = useState<string | null>(null);
+  const [withdrawSecret, setWithdrawSecret] = useState<string>("");
 
   // Helper function to generate game-specific storage key
   const getGameStorageKey = () => `game_${gameDetails?.returnGameId}`;
 
   // Game storage object structure
   type GameStorage = {
-    secret: string;
-    selectedMove: string | null;
-    playMove: string;
+    // Classic mode
+    secret?: string;
+    selectedMove?: string | null;
+    playMove?: string;
+    // MinusOne mode
+    secret1?: string;
+    secret2?: string;
+    selectedMove1?: string | null;
+    selectedMove2?: string | null;
+    withdrawChoice?: string | null;
+    withdrawSecret?: string;
     timestamp?: number;
   };
 
@@ -101,8 +128,16 @@ export default function GameModal({
     if (storedData) {
       try {
         const parsed: GameStorage = JSON.parse(storedData);
+        // Classic mode
         if (parsed.secret) setSecret(parsed.secret);
         if (parsed.selectedMove) setSelectedMove(parsed.selectedMove);
+        // MinusOne mode
+        if (parsed.secret1) setSecret1(parsed.secret1);
+        if (parsed.secret2) setSecret2(parsed.secret2);
+        if (parsed.selectedMove1) setSelectedMove1(parsed.selectedMove1);
+        if (parsed.selectedMove2) setSelectedMove2(parsed.selectedMove2);
+        if (parsed.withdrawChoice) setWithdrawChoice(parsed.withdrawChoice);
+        if (parsed.withdrawSecret) setWithdrawSecret(parsed.withdrawSecret);
       } catch (err) {
         console.error("Failed to parse stored game data:", err);
       }
@@ -111,7 +146,7 @@ export default function GameModal({
 
   const saveGameData = (updates: Partial<GameStorage>) => {
     const storedData = sessionStorage.getItem(getGameStorageKey());
-    let currentData: GameStorage = { secret: "", selectedMove: null, playMove: "", timestamp: Date.now() };
+    let currentData: GameStorage = { timestamp: Date.now() };
     
     if (storedData) {
       try {
@@ -125,6 +160,7 @@ export default function GameModal({
     sessionStorage.setItem(getGameStorageKey(), JSON.stringify(updatedData));
   };
 
+  // Classic mode save functions
   const saveSecret = (value: string) => {
     setSecret(value);
     saveGameData({ secret: value });
@@ -139,6 +175,43 @@ export default function GameModal({
 
   const savePlayMove = (playMove: string) => {
     saveGameData({ playMove });
+  };
+
+  // MinusOne mode save functions
+  const saveSecret1 = (value: string) => {
+    setSecret1(value);
+    saveGameData({ secret1: value });
+  };
+
+  const saveSecret2 = (value: string) => {
+    setSecret2(value);
+    saveGameData({ secret2: value });
+  };
+
+  const saveMoveSelection1 = (move: string | null) => {
+    setSelectedMove1(move);
+    if (move !== null) {
+      saveGameData({ selectedMove1: move });
+    }
+  };
+
+  const saveMoveSelection2 = (move: string | null) => {
+    setSelectedMove2(move);
+    if (move !== null) {
+      saveGameData({ selectedMove2: move });
+    }
+  };
+
+  const saveWithdrawChoice = (choice: string | null) => {
+    setWithdrawChoice(choice);
+    if (choice !== null) {
+      saveGameData({ withdrawChoice: choice });
+    }
+  };
+
+  const saveWithdrawSecret = (value: string) => {
+    setWithdrawSecret(value);
+    saveGameData({ withdrawSecret: value });
   };
 
 
@@ -163,23 +236,44 @@ export default function GameModal({
           console.log("Game details:", details);
           setGameDetails(details);
           
-          // Determine the correct phase based on game state
-          const playerAHasMove = Number(details.playerA.encrMove) !== 0;
-          const playerBHasMove = Number(details.playerB.encrMove) !== 0;
-          const playerARevealed = Number(details.playerA.move) !== 0;
-          const playerBRevealed = Number(details.playerB.move) !== 0;
+          // Determine game mode
+          const isMinusOne = details.gameMode === "minusone";
           
-          // If both players have revealed their moves, show reveal phase (with results)
-          if (playerARevealed && playerBRevealed) {
-            setPhase("reveal");
-          }
-          // If both players have committed but not revealed, show reveal phase
-          else if (playerAHasMove && playerBHasMove) {
-            setPhase("reveal");
-          }
-          // Otherwise, show commit phase
-          else {
-            setPhase("commit");
+          if (isMinusOne) {
+            // MinusOne mode: use phase enum
+            // GamePhase enum: Reg=0, InitC=1, FirstR=2, WithdC=3, WithdR=4, Done=5
+            const gamePhase = Number(details.phase);
+            
+            if (gamePhase === 5) { // Done
+              setPhase("reveal"); // Show final results
+            } else if (gamePhase === 4) { // WithdR
+              setPhase("withdrawReveal");
+            } else if (gamePhase === 3) { // WithdC
+              setPhase("withdrawCommit");
+            } else if (gamePhase === 2) { // FirstR
+              setPhase("reveal");
+            } else { // InitC or Reg
+              setPhase("commit");
+            }
+          } else {
+            // Classic mode: check encrMove and move fields
+            const playerAHasMove = details.playerA.encrMove && Number(details.playerA.encrMove) !== 0;
+            const playerBHasMove = details.playerB.encrMove && Number(details.playerB.encrMove) !== 0;
+            const playerARevealed = details.playerA.move && Number(details.playerA.move) !== 0;
+            const playerBRevealed = details.playerB.move && Number(details.playerB.move) !== 0;
+            
+            // If both players have revealed their moves, show reveal phase (with results)
+            if (playerARevealed && playerBRevealed) {
+              setPhase("reveal");
+            }
+            // If both players have committed but not revealed, show reveal phase
+            else if (playerAHasMove && playerBHasMove) {
+              setPhase("reveal");
+            }
+            // Otherwise, show commit phase
+            else {
+              setPhase("commit");
+            }
           }
         } catch (err: any) {
           showErrorToast("Error fetching game details: " + err.message);
@@ -218,6 +312,12 @@ export default function GameModal({
     setPhase("commit");
     setSelectedMove(null);
     setSecret("");
+    setSelectedMove1(null);
+    setSelectedMove2(null);
+    setSecret1("");
+    setSecret2("");
+    setWithdrawChoice(null);
+    setWithdrawSecret("");
     onClose();
   };
 
@@ -234,9 +334,10 @@ export default function GameModal({
               {gameId ? `Game #${gameId}` : "Game"}
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-              {phase === "commit"
-                ? "Commit your move"
-                : "Reveal your move"}
+              {phase === "commit" && "Commit your move"}
+              {phase === "reveal" && "Reveal your move"}
+              {phase === "withdrawCommit" && "Choose which move to withdraw"}
+              {phase === "withdrawReveal" && "Reveal your withdrawal choice"}
             </p>
           </div>
           <button
@@ -266,6 +367,15 @@ export default function GameModal({
                 secret={secret}
                 setSecret={saveSecret}
                 savePlayMove={savePlayMove}
+                // MinusOne mode props
+                selectedMove1={selectedMove1}
+                setSelectedMove1={saveMoveSelection1}
+                selectedMove2={selectedMove2}
+                setSelectedMove2={saveMoveSelection2}
+                secret1={secret1}
+                setSecret1={saveSecret1}
+                secret2={secret2}
+                setSecret2={saveSecret2}
               />
             )}
             {phase === "reveal" && (
@@ -279,6 +389,42 @@ export default function GameModal({
                 secret={secret}
                 gameDetails={gameDetails}
                 whoAmI={whoAmI}
+                // MinusOne mode props
+                selectedMove1={selectedMove1}
+                selectedMove2={selectedMove2}
+                secret1={secret1}
+                secret2={secret2}
+              />
+            )}
+            {phase === "withdrawCommit" && (
+              <Commit
+                account={account}
+                contract={contract}
+                config={config}
+                web3={web3}
+                whoAmI={whoAmI}
+                gameDetails={gameDetails}
+                setStatus={setStatus}
+                selectedMove={withdrawChoice}
+                setSelectedMove={saveWithdrawChoice}
+                secret={withdrawSecret}
+                setSecret={saveWithdrawSecret}
+                savePlayMove={() => {}}
+                isWithdrawPhase={true}
+              />
+            )}
+            {phase === "withdrawReveal" && (
+              <Reveal
+                account={account}
+                contract={contract}
+                config={config}
+                web3={web3}
+                setStatus={setStatus}
+                selectedMove={withdrawChoice}
+                secret={withdrawSecret}
+                gameDetails={gameDetails}
+                whoAmI={whoAmI}
+                isWithdrawPhase={true}
               />
             )}
           </div>
