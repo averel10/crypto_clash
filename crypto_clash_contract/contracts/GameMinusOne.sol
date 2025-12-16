@@ -1,709 +1,428 @@
 // SPDX-License-Identifier: MIT
-
 pragma solidity >=0.7.3;
 
 contract GameMinusOne {
-    uint public constant BET_MIN = 1e16; // The minimum bet (0.01 ETH)
-    uint public constant REVEAL_TIMEOUT = 10 minutes; // Max delay of revelation phase
-    uint public constant COMMIT_TIMEOUT = 10 minutes; // Max delay of commit phase
-    uint public constant WITHDRAW_TIMEOUT = 10 minutes; // Max delay for withdrawal phase
+    uint constant BET_MIN = 1e16;
+    uint constant REVEAL_TIMEOUT = 10 minutes;
+    uint constant COMMIT_TIMEOUT = 10 minutes;
+    uint constant WITHDRAW_TIMEOUT = 10 minutes;
 
-    enum Moves {
-        None,
-        Rock,
-        Paper,
-        Scissors
-    }
-
-    enum Outcomes {
-        None,
-        PlayerA,
-        PlayerB,
-        Draw,
-        PlayerATimeout,
-        PlayerBTimeout
-    } // Possible outcomes
-
-    enum GamePhase {
-        Registration,      // Waiting for players
-        InitialCommit,     // Players commit 2 moves each
-        FirstReveal,       // Players reveal both moves
-        Withdrawal,        // Players choose which move to withdraw
-        FinalCommit,       // Players commit their remaining move again (for fairness)
-        FinalReveal,       // Players reveal final move
-        Completed          // Game finished
-    }
+    enum Moves { None, Rock, Paper, Scissors }
+    enum Outcomes { None, A, B, D, AT, BT }
+    enum GamePhase { Reg, InitC, FirstR, WithdC, WithdR, FinalC, FinalR, Done }
 
     struct Player {
         address payable addr;
         uint bet;
-        // Initial phase - 2 moves
-        bytes32 encrMove1;
-        bytes32 encrMove2;
-        Moves move1;
-        Moves move2;
-        // Withdrawal phase
-        uint withdrawnMoveIndex; // 1 or 2
-        // Final phase
-        bytes32 encrFinalMove;
-        Moves finalMove;
-        string nickname;
+        bytes32 e1;
+        bytes32 e2;
+        Moves m1;
+        Moves m2;
+        bytes32 ew;
+        uint w;
+        bytes32 ef;
+        Moves mf;
+        string n;
     }
 
     struct GameState {
-        Player playerA;
-        Player playerB;
-        Outcomes outcome;
-        GamePhase phase;
-        uint firstCommit;
-        uint firstReveal;
-        uint firstWithdraw;
-        uint firstFinalCommit;
-        uint firstFinalReveal;
-        uint initialBet;
-        uint gameId;
-        bool isActive;
-        string gameMode; // "minusone" for this contract
+        Player a;
+        Player b;
+        Outcomes o;
+        GamePhase p;
+        uint fc;
+        uint fr;
+        uint fwc;
+        uint fwr;
+        uint ffc;
+        uint ffr;
+        uint ib;
+        uint id;
+        bool act;
+        string mode;
     }
 
-    // Mapping from game ID to game state
-    mapping(uint => GameState) private games;
+    mapping(uint => GameState) private g;
+    uint[] private ids;
+    uint private nextId = 1;
 
-    // Array to track all game IDs (for enumeration)
-    uint[] private gameIds;
-
-    // Counter for generating unique game IDs
-    uint private nextGameId = 1;
-
-    // ------------------------- Registration ------------------------- //
-
-    modifier validBet(uint gameId) {
-        require(msg.value >= BET_MIN, "Minimum bet not met");
-        require(
-            games[gameId].initialBet == 0 ||
-                msg.value == games[gameId].initialBet,
-            "Bet value must match initial bet"
-        );
+    modifier validBet(uint id_) {
+        require(msg.value >= BET_MIN, "min");
+        require(g[id_].ib == 0 || msg.value == g[id_].ib, "bet");
         _;
     }
 
-    // Register a player to an existing game or create a new game.
-    // If gameId is 0, player will join or create the first available game.
-    // Return player's ID and game ID upon successful registration.
-    function register(
-        uint gameId,
-        string memory nickname
-    )
-        public
-        payable
-        validBet(gameId)
-        returns (uint playerId, uint returnGameId)
-    {
-        // If gameId is 0, find an open game or create a new one
-        if (gameId == 0) {
-            gameId = createNewGame();
+    function register(uint id_, string memory n_) public payable validBet(id_) returns (uint, uint) {
+        if (id_ == 0) id_ = createNewGame();
+        require(g[id_].act, "act");
+        require(g[id_].p == GamePhase.Reg, "st");
+        require(bytes(n_).length > 0 && bytes(n_).length <= 20, "n");
+        GameState storage gm = g[id_];
+        if (gm.a.addr == address(0)) {
+            gm.a.addr = payable(msg.sender);
+            gm.a.n = n_;
+            gm.ib = msg.value;
+            return (1, id_);
+        } else if (gm.b.addr == address(0)) {
+            require(msg.sender != gm.a.addr, "self");
+            gm.b.addr = payable(msg.sender);
+            gm.b.n = n_;
+            gm.p = GamePhase.InitC;
+            return (2, id_);
         }
-
-        require(games[gameId].isActive, "Game is not active");
-        require(games[gameId].phase == GamePhase.Registration, "Game already started");
-        require(bytes(nickname).length > 0, "Nickname cannot be empty");
-        require(bytes(nickname).length <= 20, "Nickname too long (max 20 characters)");
-
-        GameState storage game = games[gameId];
-
-        if (game.playerA.addr == address(0x0)) {
-            game.playerA.addr = payable(msg.sender);
-            game.playerA.nickname = nickname;
-            game.initialBet = msg.value;
-            return (1, gameId);
-        } else if (game.playerB.addr == address(0x0)) {
-            require(
-                msg.sender != game.playerA.addr,
-                "Cannot play against yourself"
-            );
-            game.playerB.addr = payable(msg.sender);
-            game.playerB.nickname = nickname;
-            
-            // Both players registered, automatically start the game
-            game.phase = GamePhase.InitialCommit;
-            
-            return (2, gameId);
-        }
-
-        revert("Game is full");
+        revert("full");
     }
 
-
-    // Create a new game
     function createNewGame() private returns (uint) {
-        uint gameId = nextGameId;
-        nextGameId++;
-
-        games[gameId].gameId = gameId;
-        games[gameId].isActive = true;
-        games[gameId].phase = GamePhase.Registration;
-        games[gameId].gameMode = "minusone";
-        gameIds.push(gameId);
-
-        return gameId;
+        uint id_ = nextId++;
+        g[id_].id = id_;
+        g[id_].act = true;
+        g[id_].p = GamePhase.Reg;
+        g[id_].mode = "minusone";
+        ids.push(id_);
+        return id_;
     }
 
-    // ------------------------- Initial Commit (2 moves) ------------------------- //
-
-    modifier isRegistered(uint gameId) {
-        require(gameId != 0, "Invalid game ID");
-        require(
-            msg.sender == games[gameId].playerA.addr ||
-                msg.sender == games[gameId].playerB.addr,
-            "Player not registered in this game"
-        );
+    modifier isRegistered(uint id_) {
+        require(id_ != 0, "id");
+        require(msg.sender == g[id_].a.addr || msg.sender == g[id_].b.addr, "reg");
         _;
     }
 
-    // Commit two moves for the initial phase
-    // encrMove1 and encrMove2 must be "<1|2|3>-password" hashed with keccak256
-    function commitInitialMoves(uint gameId, bytes32 encrMove1, bytes32 encrMove2) 
-        public 
-        isRegistered(gameId) 
-        returns (bool) 
-    {
-        GameState storage game = games[gameId];
-        
-        require(game.isActive, "Game is no longer active");
-        require(game.phase == GamePhase.InitialCommit, "Not in initial commit phase");
-        require(encrMove1 != bytes32(0) && encrMove2 != bytes32(0), "Encrypted moves cannot be zero");
-        require(encrMove1 != encrMove2, "Both moves must be different");
-        
-        // Check timeout
-        if (game.firstCommit != 0) {
-            require(block.timestamp <= game.firstCommit + COMMIT_TIMEOUT, "Commit phase timeout expired");
+    function commitInitialMoves(uint id_, bytes32 e1_, bytes32 e2_) public isRegistered(id_) returns (bool) {
+        GameState storage gm = g[id_];
+        require(gm.act, "act");
+        require(gm.p == GamePhase.InitC, "ph");
+        require(e1_ != bytes32(0) && e2_ != bytes32(0), "0");
+        require(e1_ != e2_, "eq");
+        if (gm.fc != 0) require(block.timestamp <= gm.fc + COMMIT_TIMEOUT, "to");
+        if (gm.fc == 0) gm.fc = block.timestamp;
+        if (msg.sender == gm.a.addr) {
+            require(gm.a.e1 == bytes32(0), "a");
+            gm.a.e1 = e1_;
+            gm.a.e2 = e2_;
+        } else if (msg.sender == gm.b.addr) {
+            require(gm.b.e1 == bytes32(0), "b");
+            gm.b.e1 = e1_;
+            gm.b.e2 = e2_;
+        } else revert("reg");
+        if (gm.a.e1 != bytes32(0) && gm.b.e1 != bytes32(0)) {
+            gm.p = GamePhase.FirstR;
+            gm.fr = 0;
         }
-        
-        // Track first commit timestamp
-        if (game.firstCommit == 0) {
-            game.firstCommit = block.timestamp;
-        }
-        
-        // Store encrypted moves
-        if (msg.sender == game.playerA.addr) {
-            require(game.playerA.encrMove1 == bytes32(0), "Player A already committed");
-            game.playerA.encrMove1 = encrMove1;
-            game.playerA.encrMove2 = encrMove2;
-        } else if (msg.sender == game.playerB.addr) {
-            require(game.playerB.encrMove1 == bytes32(0), "Player B already committed");
-            game.playerB.encrMove1 = encrMove1;
-            game.playerB.encrMove2 = encrMove2;
-        } else {
-            revert("Caller not registered");
-        }
-        
-        // Check if both players have committed, advance to reveal phase
-        if (game.playerA.encrMove1 != bytes32(0) && game.playerB.encrMove1 != bytes32(0)) {
-            game.phase = GamePhase.FirstReveal;
-            game.firstReveal = 0; // Reset for reveal phase
-        }
-        
         return true;
     }
 
-    // ------------------------- First Reveal (2 moves) ------------------------- //
-
-    // Reveal both initial moves
-    // clearMove1 and clearMove2 must be the original strings used for hashing
-    function revealInitialMoves(uint gameId, string memory clearMove1, string memory clearMove2)
-        public
-        isRegistered(gameId)
-        returns (Moves, Moves)
-    {
-        GameState storage game = games[gameId];
-        
-        require(game.isActive, "Game is no longer active");
-        require(game.phase == GamePhase.FirstReveal, "Not in first reveal phase");
-        
-        // Check timeout
-        if (game.firstReveal != 0) {
-            require(block.timestamp <= game.firstReveal + REVEAL_TIMEOUT, "Reveal phase timeout expired");
+    function revealInitialMoves(uint id_, string memory c1, string memory c2) public isRegistered(id_) returns (Moves, Moves) {
+        GameState storage gm = g[id_];
+        require(gm.act, "act");
+        require(gm.p == GamePhase.FirstR, "ph");
+        if (gm.fr != 0) require(block.timestamp <= gm.fr + REVEAL_TIMEOUT, "to");
+        bytes32 e1_ = keccak256(abi.encodePacked(c1));
+        bytes32 e2_ = keccak256(abi.encodePacked(c2));
+        Moves m1_ = Moves(getFirstChar(c1));
+        Moves m2_ = Moves(getFirstChar(c2));
+        require(m1_ != Moves.None && m2_ != Moves.None, "m");
+        require(m1_ != m2_, "eq");
+        if (msg.sender == gm.a.addr) {
+            require(e1_ == gm.a.e1 && e2_ == gm.a.e2, "h");
+            gm.a.m1 = m1_;
+            gm.a.m2 = m2_;
+        } else if (msg.sender == gm.b.addr) {
+            require(e1_ == gm.b.e1 && e2_ == gm.b.e2, "h");
+            gm.b.m1 = m1_;
+            gm.b.m2 = m2_;
+        } else revert("reg");
+        if (gm.fr == 0) gm.fr = block.timestamp;
+        if (gm.a.m1 != Moves.None && gm.b.m1 != Moves.None) {
+            gm.p = GamePhase.WithdC;
+            gm.fwc = 0;
         }
-        
-        bytes32 encrMove1 = keccak256(abi.encodePacked(clearMove1));
-        bytes32 encrMove2 = keccak256(abi.encodePacked(clearMove2));
-        Moves move1 = Moves(getFirstChar(clearMove1));
-        Moves move2 = Moves(getFirstChar(clearMove2));
-        
-        require(move1 != Moves.None && move2 != Moves.None, "Invalid moves");
-        require(move1 != move2, "Both moves must be different");
-        
-        // Verify and store moves
-        if (msg.sender == game.playerA.addr) {
-            require(encrMove1 == game.playerA.encrMove1 && encrMove2 == game.playerA.encrMove2, 
-                "Hash mismatch for Player A");
-            game.playerA.move1 = move1;
-            game.playerA.move2 = move2;
-        } else if (msg.sender == game.playerB.addr) {
-            require(encrMove1 == game.playerB.encrMove1 && encrMove2 == game.playerB.encrMove2,
-                "Hash mismatch for Player B");
-            game.playerB.move1 = move1;
-            game.playerB.move2 = move2;
-        } else {
-            revert("Caller not registered");
-        }
-        
-        // Start reveal timer on first reveal
-        if (game.firstReveal == 0) {
-            game.firstReveal = block.timestamp;
-        }
-        
-        // Check if both players have revealed, advance to withdrawal phase
-        if (game.playerA.move1 != Moves.None && game.playerB.move1 != Moves.None) {
-            game.phase = GamePhase.Withdrawal;
-            game.firstWithdraw = 0; // Reset for withdrawal phase
-        }
-        
-        return (move1, move2);
+        return (m1_, m2_);
     }
 
-    // ------------------------- Withdrawal Phase ------------------------- //
-
-    // Choose which move to withdraw (1 or 2)
-    function withdrawMove(uint gameId, uint moveIndex)
-        public
-        isRegistered(gameId)
-        returns (bool)
-    {
-        GameState storage game = games[gameId];
-        
-        require(game.isActive, "Game is no longer active");
-        require(game.phase == GamePhase.Withdrawal, "Not in withdrawal phase");
-        require(moveIndex == 1 || moveIndex == 2, "Move index must be 1 or 2");
-        
-        // Check timeout
-        if (game.firstWithdraw != 0) {
-            require(block.timestamp <= game.firstWithdraw + WITHDRAW_TIMEOUT, "Withdrawal phase timeout expired");
+    function commitWithdraw(uint id_, bytes32 ew_) public isRegistered(id_) returns (bool) {
+        GameState storage gm = g[id_];
+        require(gm.act, "act");
+        require(gm.p == GamePhase.WithdC, "ph");
+        require(ew_ != bytes32(0), "0");
+        if (gm.fwc != 0) require(block.timestamp <= gm.fwc + COMMIT_TIMEOUT, "to");
+        if (msg.sender == gm.a.addr) {
+            require(gm.a.ew == bytes32(0), "a");
+            gm.a.ew = ew_;
+        } else if (msg.sender == gm.b.addr) {
+            require(gm.b.ew == bytes32(0), "b");
+            gm.b.ew = ew_;
+        } else revert("reg");
+        if (gm.fwc == 0) gm.fwc = block.timestamp;
+        if (gm.a.ew != bytes32(0) && gm.b.ew != bytes32(0)) {
+            gm.p = GamePhase.WithdR;
+            gm.fwr = 0;
         }
-        
-        // Store withdrawal choice
-        if (msg.sender == game.playerA.addr) {
-            require(game.playerA.withdrawnMoveIndex == 0, "Player A already withdrew");
-            game.playerA.withdrawnMoveIndex = moveIndex;
-        } else if (msg.sender == game.playerB.addr) {
-            require(game.playerB.withdrawnMoveIndex == 0, "Player B already withdrew");
-            game.playerB.withdrawnMoveIndex = moveIndex;
-        } else {
-            revert("Caller not registered");
-        }
-        
-        // Start withdrawal timer on first withdrawal
-        if (game.firstWithdraw == 0) {
-            game.firstWithdraw = block.timestamp;
-        }
-        
-        // Check if both players have withdrawn, advance to final commit phase
-        if (game.playerA.withdrawnMoveIndex != 0 && game.playerB.withdrawnMoveIndex != 0) {
-            game.phase = GamePhase.FinalCommit;
-            game.firstFinalCommit = 0; // Reset for final commit
-        }
-        
         return true;
     }
 
-    // ------------------------- Final Commit (remaining move) ------------------------- //
+    function withdrawMove(uint id_, string memory cw) public isRegistered(id_) returns (uint) {
+        GameState storage gm = g[id_];
+        require(gm.act, "act");
+        require(gm.p == GamePhase.WithdR, "ph");
+        if (gm.fwr != 0) require(block.timestamp <= gm.fwr + REVEAL_TIMEOUT, "to");
+        bytes32 ew_ = keccak256(abi.encodePacked(cw));
+        uint idx = getFirstChar(cw);
+        require(idx == 1 || idx == 2, "idx");
+        if (msg.sender == gm.a.addr) {
+            require(ew_ == gm.a.ew, "h");
+            require(gm.a.w == 0, "a");
+            gm.a.w = idx;
+        } else if (msg.sender == gm.b.addr) {
+            require(ew_ == gm.b.ew, "h");
+            require(gm.b.w == 0, "b");
+            gm.b.w = idx;
+        } else revert("reg");
+        if (gm.fwr == 0) gm.fwr = block.timestamp;
+        if (gm.a.w != 0 && gm.b.w != 0) {
+            gm.p = GamePhase.FinalC;
+            gm.ffc = 0;
+        }
+        return idx;
+    }
 
-    // Commit the remaining move again (for fairness and to prevent cheating)
-    function commitFinalMove(uint gameId, bytes32 encrFinalMove)
-        public
-        isRegistered(gameId)
-        returns (bool)
-    {
-        GameState storage game = games[gameId];
-        
-        require(game.isActive, "Game is no longer active");
-        require(game.phase == GamePhase.FinalCommit, "Not in final commit phase");
-        require(encrFinalMove != bytes32(0), "Encrypted move cannot be zero");
-        
-        // Check timeout
-        if (game.firstFinalCommit != 0) {
-            require(block.timestamp <= game.firstFinalCommit + COMMIT_TIMEOUT, "Final commit timeout expired");
+    function commitFinalMove(uint id_, bytes32 ef_) public isRegistered(id_) returns (bool) {
+        GameState storage gm = g[id_];
+        require(gm.act, "act");
+        require(gm.p == GamePhase.FinalC, "ph");
+        require(ef_ != bytes32(0), "0");
+        if (gm.ffc != 0) require(block.timestamp <= gm.ffc + COMMIT_TIMEOUT, "to");
+        if (msg.sender == gm.a.addr) {
+            require(gm.a.ef == bytes32(0), "a");
+            gm.a.ef = ef_;
+        } else if (msg.sender == gm.b.addr) {
+            require(gm.b.ef == bytes32(0), "b");
+            gm.b.ef = ef_;
+        } else revert("reg");
+        if (gm.ffc == 0) gm.ffc = block.timestamp;
+        if (gm.a.ef != bytes32(0) && gm.b.ef != bytes32(0)) {
+            gm.p = GamePhase.FinalR;
+            gm.ffr = 0;
         }
-        
-        // Store encrypted final move
-        if (msg.sender == game.playerA.addr) {
-            require(game.playerA.encrFinalMove == bytes32(0), "Player A already committed final move");
-            game.playerA.encrFinalMove = encrFinalMove;
-        } else if (msg.sender == game.playerB.addr) {
-            require(game.playerB.encrFinalMove == bytes32(0), "Player B already committed final move");
-            game.playerB.encrFinalMove = encrFinalMove;
-        } else {
-            revert("Caller not registered");
-        }
-        
-        // Start final commit timer on first commit
-        if (game.firstFinalCommit == 0) {
-            game.firstFinalCommit = block.timestamp;
-        }
-        
-        // Check if both players have committed, advance to final reveal phase
-        if (game.playerA.encrFinalMove != bytes32(0) && game.playerB.encrFinalMove != bytes32(0)) {
-            game.phase = GamePhase.FinalReveal;
-            game.firstFinalReveal = 0; // Reset for final reveal
-        }
-        
         return true;
     }
 
-    // ------------------------- Final Reveal ------------------------- //
-
-    // Reveal the final move and determine winner
-    function revealFinalMove(uint gameId, string memory clearFinalMove)
-        public
-        isRegistered(gameId)
-        returns (Moves)
-    {
-        GameState storage game = games[gameId];
-        
-        require(game.isActive, "Game is no longer active");
-        require(game.phase == GamePhase.FinalReveal, "Not in final reveal phase");
-        
-        // Check timeout
-        if (game.firstFinalReveal != 0) {
-            require(block.timestamp <= game.firstFinalReveal + REVEAL_TIMEOUT, "Final reveal timeout expired");
-        }
-        
-        bytes32 encrFinalMove = keccak256(abi.encodePacked(clearFinalMove));
-        Moves finalMove = Moves(getFirstChar(clearFinalMove));
-        
-        require(finalMove != Moves.None, "Invalid move");
-        
-        // Verify and store final move
-        if (msg.sender == game.playerA.addr) {
-            require(encrFinalMove == game.playerA.encrFinalMove, "Hash mismatch for Player A final move");
-            // Verify this is the non-withdrawn move
-            Moves expectedMove = game.playerA.withdrawnMoveIndex == 1 ? game.playerA.move2 : game.playerA.move1;
-            require(finalMove == expectedMove, "Final move must be the non-withdrawn move");
-            game.playerA.finalMove = finalMove;
-        } else if (msg.sender == game.playerB.addr) {
-            require(encrFinalMove == game.playerB.encrFinalMove, "Hash mismatch for Player B final move");
-            // Verify this is the non-withdrawn move
-            Moves expectedMove = game.playerB.withdrawnMoveIndex == 1 ? game.playerB.move2 : game.playerB.move1;
-            require(finalMove == expectedMove, "Final move must be the non-withdrawn move");
-            game.playerB.finalMove = finalMove;
-        } else {
-            revert("Caller not registered");
-        }
-        
-        // Start final reveal timer on first reveal
-        if (game.firstFinalReveal == 0) {
-            game.firstFinalReveal = block.timestamp;
-        }
-        
-        // Check if both players have revealed final moves, determine outcome
-        if (game.playerA.finalMove != Moves.None && game.playerB.finalMove != Moves.None) {
-            determineOutcome(gameId);
-        }
-        
-        return finalMove;
+    function revealFinalMove(uint id_, string memory cf_) public isRegistered(id_) returns (Moves) {
+        GameState storage gm = g[id_];
+        require(gm.act, "act");
+        require(gm.p == GamePhase.FinalR, "ph");
+        if (gm.ffr != 0) require(block.timestamp <= gm.ffr + REVEAL_TIMEOUT, "to");
+        bytes32 ef_ = keccak256(abi.encodePacked(cf_));
+        Moves mf_ = Moves(getFirstChar(cf_));
+        require(mf_ != Moves.None, "m");
+        if (msg.sender == gm.a.addr) {
+            require(ef_ == gm.a.ef, "h");
+            Moves exp = gm.a.w == 1 ? gm.a.m2 : gm.a.m1;
+            require(mf_ == exp, "w");
+            gm.a.mf = mf_;
+        } else if (msg.sender == gm.b.addr) {
+            require(ef_ == gm.b.ef, "h");
+            Moves exp = gm.b.w == 1 ? gm.b.m2 : gm.b.m1;
+            require(mf_ == exp, "w");
+            gm.b.mf = mf_;
+        } else revert("reg");
+        if (gm.ffr == 0) gm.ffr = block.timestamp;
+        if (gm.a.mf != Moves.None && gm.b.mf != Moves.None) determineOutcome(id_);
+        return mf_;
     }
 
-    // Determine the final outcome based on both players' final moves
-    function determineOutcome(uint gameId) private {
-        GameState storage game = games[gameId];
-        
-        if (game.playerA.finalMove == game.playerB.finalMove) {
-            game.outcome = Outcomes.Draw;
-        } else if (
-            (game.playerA.finalMove == Moves.Rock && game.playerB.finalMove == Moves.Scissors) ||
-            (game.playerA.finalMove == Moves.Paper && game.playerB.finalMove == Moves.Rock) ||
-            (game.playerA.finalMove == Moves.Scissors && game.playerB.finalMove == Moves.Paper)
-        ) {
-            game.outcome = Outcomes.PlayerA;
-        } else {
-            game.outcome = Outcomes.PlayerB;
-        }
-        
-        game.phase = GamePhase.Completed;
+    function determineOutcome(uint id_) private {
+        GameState storage gm = g[id_];
+        if (gm.a.mf == gm.b.mf) gm.o = Outcomes.D;
+        else if ((gm.a.mf == Moves.Rock && gm.b.mf == Moves.Scissors) ||
+                 (gm.a.mf == Moves.Paper && gm.b.mf == Moves.Rock) ||
+                 (gm.a.mf == Moves.Scissors && gm.b.mf == Moves.Paper))
+            gm.o = Outcomes.A;
+        else gm.o = Outcomes.B;
+        gm.p = GamePhase.Done;
     }
 
-    // Return first character of a given string.
-    // Returns 0 if the string is empty or the first character is not '1','2' or '3'.
-    function getFirstChar(string memory str) private pure returns (uint) {
-        bytes memory b = bytes(str);
-        if (b.length == 0) {
-            return 0;
-        }
-        bytes1 firstByte = b[0];
-        if (firstByte == 0x31) {
-            return 1;
-        } else if (firstByte == 0x32) {
-            return 2;
-        } else if (firstByte == 0x33) {
-            return 3;
-        } else {
-            return 0;
-        }
+    function getFirstChar(string memory s) private pure returns (uint) {
+        bytes memory b = bytes(s);
+        if (b.length == 0) return 0;
+        bytes1 f = b[0];
+        if (f == 0x31) return 1;
+        if (f == 0x32) return 2;
+        if (f == 0x33) return 3;
+        return 0;
     }
 
-    // ------------------------- Result ------------------------- //
-
-    // Compute the outcome and pay the winner(s).
-    // Return the outcome.
-    function getOutcome(uint gameId) public returns (Outcomes) {
-        GameState storage game = games[gameId];
-        
-        require(game.isActive, "Game is not active");
-        require(game.phase == GamePhase.Completed, "Game not completed yet");
-        require(game.outcome != Outcomes.None, "Outcome not yet determined");
-
-        address payable addrA = game.playerA.addr;
-        address payable addrB = game.playerB.addr;
-        uint betPlayerA = game.initialBet;
-
-        // Reset and cleanup
-        resetGame(gameId); // Reset game before paying to avoid reentrancy attacks
-        pay(addrA, addrB, betPlayerA, game.outcome);
-
-        return game.outcome;
+    function getOutcome(uint id_) public returns (Outcomes) {
+        GameState storage gm = g[id_];
+        require(gm.act, "act");
+        require(gm.p == GamePhase.Done, "dn");
+        require(gm.o != Outcomes.None, "o");
+        address payable a = gm.a.addr;
+        address payable b = gm.b.addr;
+        uint bet = gm.ib;
+        Outcomes out = gm.o;
+        resetGame(id_);
+        pay(a, b, bet, out);
+        return out;
     }
 
-    // Pay the winner(s).
-    function pay(
-        address payable addrA,
-        address payable addrB,
-        uint betPlayerA,
-        Outcomes outcome
-    ) private {
-        if (outcome == Outcomes.PlayerA) {
-            addrA.transfer(betPlayerA * 2);
-        } else if (outcome == Outcomes.PlayerB) {
-            addrB.transfer(betPlayerA * 2);
-        } else {
-            addrA.transfer(betPlayerA);
-            addrB.transfer(betPlayerA);
-        }
+    function pay(address payable a, address payable b, uint bet, Outcomes o) private {
+        if (o == Outcomes.A) a.transfer(bet * 2);
+        else if (o == Outcomes.B) b.transfer(bet * 2);
+        else { a.transfer(bet); b.transfer(bet); }
     }
 
-    // Pay to one player and slash the other (timeout resolution).
-    function payWithSlash(
-        address payable winner,
-        address payable loser,
-        uint betAmount
-    ) private {
-        // Winner gets both bets
-        winner.transfer(betAmount * 2);
-        // Loser gets nothing (slashed)
+    function payWithSlash(address payable w, address payable, uint bet) private {
+        w.transfer(bet * 2);
     }
 
-    // Reset a specific game.
-    function resetGame(uint gameId) private {
-        GameState storage game = games[gameId];
-
-        // Mark game as inactive
-        game.isActive = false;
-
-        // Note: We keep the game data in the mapping for reference
-        // but players are now free to join other games
+    function resetGame(uint id_) private {
+        g[id_].act = false;
     }
 
-    // ------------------------- Helpers ------------------------- //
-
-    // Return contract balance
     function getContractBalance() public view returns (uint) {
         return address(this).balance;
     }
 
-    // Return player's ID in their active game
-    function whoAmI(uint gameId) public view returns (uint) {
-        if (gameId == 0) {
-            return 0;
-        }
-
-        GameState storage game = games[gameId];
-        if (msg.sender == game.playerA.addr) {
-            return 1;
-        } else if (msg.sender == game.playerB.addr) {
-            return 2;
-        } else {
-            return 0;
-        }
+    function whoAmI(uint id_) public view returns (uint) {
+        if (id_ == 0) return 0;
+        GameState storage gm = g[id_];
+        if (msg.sender == gm.a.addr) return 1;
+        if (msg.sender == gm.b.addr) return 2;
+        return 0;
     }
 
-    // Get the current phase of the game
-    function getGamePhase(uint gameId) public view returns (GamePhase) {
-        return games[gameId].phase;
+    function getGamePhase(uint id_) public view returns (GamePhase) {
+        return g[id_].p;
     }
 
-    // Get time remaining in current phase
-    function getTimeLeft(uint gameId) public view returns (int) {
-        if (gameId == 0) return 0;
-
-        GameState storage game = games[gameId];
-        
-        if (game.phase == GamePhase.InitialCommit && game.firstCommit != 0) {
-            uint deadline = game.firstCommit + COMMIT_TIMEOUT;
-            if (block.timestamp >= deadline) return 0;
-            return int(deadline - block.timestamp);
-        } else if (game.phase == GamePhase.FirstReveal && game.firstReveal != 0) {
-            uint deadline = game.firstReveal + REVEAL_TIMEOUT;
-            if (block.timestamp >= deadline) return 0;
-            return int(deadline - block.timestamp);
-        } else if (game.phase == GamePhase.Withdrawal && game.firstWithdraw != 0) {
-            uint deadline = game.firstWithdraw + WITHDRAW_TIMEOUT;
-            if (block.timestamp >= deadline) return 0;
-            return int(deadline - block.timestamp);
-        } else if (game.phase == GamePhase.FinalCommit && game.firstFinalCommit != 0) {
-            uint deadline = game.firstFinalCommit + COMMIT_TIMEOUT;
-            if (block.timestamp >= deadline) return 0;
-            return int(deadline - block.timestamp);
-        } else if (game.phase == GamePhase.FinalReveal && game.firstFinalReveal != 0) {
-            uint deadline = game.firstFinalReveal + REVEAL_TIMEOUT;
-            if (block.timestamp >= deadline) return 0;
-            return int(deadline - block.timestamp);
+    function getTimeLeft(uint id_) public view returns (int) {
+        if (id_ == 0) return 0;
+        GameState storage gm = g[id_];
+        if (gm.p == GamePhase.InitC && gm.fc != 0) {
+            uint d = gm.fc + COMMIT_TIMEOUT;
+            if (block.timestamp >= d) return 0;
+            return int(d - block.timestamp);
+        } else if (gm.p == GamePhase.FirstR && gm.fr != 0) {
+            uint d = gm.fr + REVEAL_TIMEOUT;
+            if (block.timestamp >= d) return 0;
+            return int(d - block.timestamp);
+        } else if (gm.p == GamePhase.WithdC && gm.fwc != 0) {
+            uint d = gm.fwc + COMMIT_TIMEOUT;
+            if (block.timestamp >= d) return 0;
+            return int(d - block.timestamp);
+        } else if (gm.p == GamePhase.WithdR && gm.fwr != 0) {
+            uint d = gm.fwr + REVEAL_TIMEOUT;
+            if (block.timestamp >= d) return 0;
+            return int(d - block.timestamp);
+        } else if (gm.p == GamePhase.FinalC && gm.ffc != 0) {
+            uint d = gm.ffc + COMMIT_TIMEOUT;
+            if (block.timestamp >= d) return 0;
+            return int(d - block.timestamp);
+        } else if (gm.p == GamePhase.FinalR && gm.ffr != 0) {
+            uint d = gm.ffr + REVEAL_TIMEOUT;
+            if (block.timestamp >= d) return 0;
+            return int(d - block.timestamp);
         }
-        
-        return int(COMMIT_TIMEOUT); // Default timeout
+        return int(COMMIT_TIMEOUT);
     }
 
-    // Resolve a game that has timed out
-    function resolveTimeout(uint gameId) public isRegistered(gameId) {
-        GameState storage game = games[gameId];
-        require(game.isActive, "Game is not active");
-        
-        address caller = msg.sender;
-        address payable winner = payable(caller);
-        
-        bool timeoutOccurred = false;
-        
-        // Check for timeout in various phases
-        if (game.phase == GamePhase.InitialCommit && game.firstCommit != 0) {
-            if (block.timestamp > game.firstCommit + COMMIT_TIMEOUT) {
-                // Player who didn't commit loses
-                if (caller == game.playerA.addr && game.playerB.encrMove1 == bytes32(0)) {
-                    game.outcome = Outcomes.PlayerA;
-                    timeoutOccurred = true;
-                } else if (caller == game.playerB.addr && game.playerA.encrMove1 == bytes32(0)) {
-                    game.outcome = Outcomes.PlayerB;
-                    timeoutOccurred = true;
+    function resolveTimeout(uint id_) public isRegistered(id_) {
+        GameState storage gm = g[id_];
+        require(gm.act, "act");
+        address c = msg.sender;
+        address payable w = payable(c);
+        bool to = false;
+        if (gm.p == GamePhase.InitC && gm.fc != 0) {
+            if (block.timestamp > gm.fc + COMMIT_TIMEOUT) {
+                if (c == gm.a.addr && gm.b.e1 == bytes32(0)) {
+                    gm.o = Outcomes.A;
+                    to = true;
+                } else if (c == gm.b.addr && gm.a.e1 == bytes32(0)) {
+                    gm.o = Outcomes.B;
+                    to = true;
                 }
             }
-        } else if (game.phase == GamePhase.FirstReveal && game.firstReveal != 0) {
-            if (block.timestamp > game.firstReveal + REVEAL_TIMEOUT) {
-                // Player who didn't reveal loses
-                if (caller == game.playerA.addr && game.playerB.move1 == Moves.None) {
-                    game.outcome = Outcomes.PlayerA;
-                    timeoutOccurred = true;
-                } else if (caller == game.playerB.addr && game.playerA.move1 == Moves.None) {
-                    game.outcome = Outcomes.PlayerB;
-                    timeoutOccurred = true;
+        } else if (gm.p == GamePhase.FirstR && gm.fr != 0) {
+            if (block.timestamp > gm.fr + REVEAL_TIMEOUT) {
+                if (c == gm.a.addr && gm.b.m1 == Moves.None) {
+                    gm.o = Outcomes.A;
+                    to = true;
+                } else if (c == gm.b.addr && gm.a.m1 == Moves.None) {
+                    gm.o = Outcomes.B;
+                    to = true;
                 }
             }
-        } else if (game.phase == GamePhase.Withdrawal && game.firstWithdraw != 0) {
-            if (block.timestamp > game.firstWithdraw + WITHDRAW_TIMEOUT) {
-                // Player who didn't withdraw loses
-                if (caller == game.playerA.addr && game.playerB.withdrawnMoveIndex == 0) {
-                    game.outcome = Outcomes.PlayerA;
-                    timeoutOccurred = true;
-                } else if (caller == game.playerB.addr && game.playerA.withdrawnMoveIndex == 0) {
-                    game.outcome = Outcomes.PlayerB;
-                    timeoutOccurred = true;
+        } else if (gm.p == GamePhase.WithdC && gm.fwc != 0) {
+            if (block.timestamp > gm.fwc + COMMIT_TIMEOUT) {
+                if (c == gm.a.addr && gm.b.ew == bytes32(0)) {
+                    gm.o = Outcomes.A;
+                    to = true;
+                } else if (c == gm.b.addr && gm.a.ew == bytes32(0)) {
+                    gm.o = Outcomes.B;
+                    to = true;
                 }
             }
-        } else if (game.phase == GamePhase.FinalCommit && game.firstFinalCommit != 0) {
-            if (block.timestamp > game.firstFinalCommit + COMMIT_TIMEOUT) {
-                // Player who didn't commit final move loses
-                if (caller == game.playerA.addr && game.playerB.encrFinalMove == bytes32(0)) {
-                    game.outcome = Outcomes.PlayerA;
-                    timeoutOccurred = true;
-                } else if (caller == game.playerB.addr && game.playerA.encrFinalMove == bytes32(0)) {
-                    game.outcome = Outcomes.PlayerB;
-                    timeoutOccurred = true;
+        } else if (gm.p == GamePhase.WithdR && gm.fwr != 0) {
+            if (block.timestamp > gm.fwr + REVEAL_TIMEOUT) {
+                if (c == gm.a.addr && gm.b.w == 0) {
+                    gm.o = Outcomes.A;
+                    to = true;
+                } else if (c == gm.b.addr && gm.a.w == 0) {
+                    gm.o = Outcomes.B;
+                    to = true;
                 }
             }
-        } else if (game.phase == GamePhase.FinalReveal && game.firstFinalReveal != 0) {
-            if (block.timestamp > game.firstFinalReveal + REVEAL_TIMEOUT) {
-                // Player who didn't reveal final move loses
-                if (caller == game.playerA.addr && game.playerB.finalMove == Moves.None) {
-                    game.outcome = Outcomes.PlayerA;
-                    timeoutOccurred = true;
-                } else if (caller == game.playerB.addr && game.playerA.finalMove == Moves.None) {
-                    game.outcome = Outcomes.PlayerB;
-                    timeoutOccurred = true;
+        } else if (gm.p == GamePhase.FinalC && gm.ffc != 0) {
+            if (block.timestamp > gm.ffc + COMMIT_TIMEOUT) {
+                if (c == gm.a.addr && gm.b.ef == bytes32(0)) {
+                    gm.o = Outcomes.A;
+                    to = true;
+                } else if (c == gm.b.addr && gm.a.ef == bytes32(0)) {
+                    gm.o = Outcomes.B;
+                    to = true;
+                }
+            }
+        } else if (gm.p == GamePhase.FinalR && gm.ffr != 0) {
+            if (block.timestamp > gm.ffr + REVEAL_TIMEOUT) {
+                if (c == gm.a.addr && gm.b.mf == Moves.None) {
+                    gm.o = Outcomes.A;
+                    to = true;
+                } else if (c == gm.b.addr && gm.a.mf == Moves.None) {
+                    gm.o = Outcomes.B;
+                    to = true;
                 }
             }
         }
-        
-        require(timeoutOccurred, "No timeout has occurred or caller is not the non-offending player");
-        
-        address payable loser = winner == game.playerA.addr ? game.playerB.addr : game.playerA.addr;
-        
-        // Reset game
-        resetGame(gameId);
-        
-        // Pay winner and slash offender
-        payWithSlash(winner, loser, game.initialBet);
+        require(to, "to");
+        address payable l = w == gm.a.addr ? gm.b.addr : gm.a.addr;
+        uint bet = gm.ib;
+        resetGame(id_);
+        payWithSlash(w, l, bet);
     }
 
-    // ------------------------- Game Management ------------------------- //
-
-    // Get details of a specific game (for viewing any game)
-    function getGameDetails(
-        uint gameId
-    )
-        public
-        view
-        returns (
-            Player memory playerA,
-            Player memory playerB,
-            uint initialBet,
-            Outcomes outcome,
-            GamePhase phase,
-            bool isActive,
-            uint returnGameId,
-            string memory gameMode
-        )
-    {
-        GameState storage game = games[gameId];
-        require(game.gameId != 0, "Game does not exist");
-        return (
-            game.playerA,
-            game.playerB,
-            game.initialBet,
-            game.outcome,
-            game.phase,
-            game.isActive,
-            game.gameId,
-            game.gameMode
-        );
+    function getGameDetails(uint id_) public view returns (
+        Player memory, Player memory, uint, Outcomes, GamePhase, bool, uint, string memory) {
+        GameState storage gm = g[id_];
+        require(gm.id != 0, "no");
+        return (gm.a, gm.b, gm.ib, gm.o, gm.p, gm.act, gm.id, gm.mode);
     }
 
-    // Get all active game IDs
     function getActiveGameIds() public view returns (uint[] memory) {
-        uint activeCount = 0;
-
-        // Count active games
-        for (uint i = 0; i < gameIds.length; i++) {
-            if (games[gameIds[i]].isActive) {
-                activeCount++;
-            }
-        }
-
-        // Build array of active game IDs
-        uint[] memory activeIds = new uint[](activeCount);
-        uint index = 0;
-        for (uint i = 0; i < gameIds.length; i++) {
-            if (games[gameIds[i]].isActive) {
-                activeIds[index] = gameIds[i];
-                index++;
-            }
-        }
-
-        return activeIds;
+        uint c = 0;
+        for (uint i = 0; i < ids.length; i++) if (g[ids[i]].act) c++;
+        uint[] memory a = new uint[](c);
+        uint ix = 0;
+        for (uint i = 0; i < ids.length; i++) if (g[ids[i]].act) a[ix++] = ids[i];
+        return a;
     }
 
-    // Advance game to initial commit phase (called automatically after both players register)
-    function startGame(uint gameId) public {
-        GameState storage game = games[gameId];
-        require(game.isActive, "Game is not active");
-        require(game.phase == GamePhase.Registration, "Game already started");
-        require(game.playerA.addr != address(0) && game.playerB.addr != address(0), "Both players must be registered");
-        
-        game.phase = GamePhase.InitialCommit;
+    function startGame(uint id_) public {
+        GameState storage gm = g[id_];
+        require(gm.act, "act");
+        require(gm.p == GamePhase.Reg, "st");
+        require(gm.a.addr != address(0) && gm.b.addr != address(0), "r");
+        gm.p = GamePhase.InitC;
     }
 }
