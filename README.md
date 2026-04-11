@@ -1,3 +1,5 @@
+# ARCHIVED
+
 <h1 align="center">
   <img src="crypto_clash_frontend/public/web-app-manifest-192x192.png" align="center" alt="App Icon" width="90" height="90">
   Crypto Clash
